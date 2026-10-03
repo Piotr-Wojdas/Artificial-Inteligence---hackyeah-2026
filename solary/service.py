@@ -5,14 +5,18 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from .config import CONFIG, Config
 from .errors import SolaryError
 from .geocode import geocode
-from .panels import (distance_to_building_m, google_panel_watts, max_kwp, max_panels, ordered_panels,
+from .layout import LayoutUnavailable, layout_key, with_own_layout
+from .panels import (distance_to_building_m, energy_scale, google_panel_watts, max_kwp, max_panels, ordered_panels,
                      panel_watts, panels_for_kwp, segments_table)
 from .production import estimate_generic, estimate_roof, sizes_table
 from .render import PANEL_H_M, PANEL_W_M, render
-from .solar_api import RoofNotFound, SolarApiError, building_insights, data_layers, purge_expired, tag
+from .solar_api import (LAYERS, LAYOUT_LAYERS, RoofNotFound, SolarApiError, building_insights, data_layers,
+                        purge_expired, tag)
 
 ATTRIBUTION = ("Roof data and imagery © Google (Solar API); address search © OpenStreetMap contributors; "
                "monthly profile: PVGIS © European Union")
@@ -28,6 +32,9 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
     Where Google has no roof data the result has "roof_available": False and a PVGIS-only
     estimate for `kwp` at `tilt`/`azimuth` (compass degrees, 180 = south; defaults in cfg).
     `images=True` also renders the PNG previews and returns their file names (in cfg.roof_dir).
+    `cfg.layout` chooses who places the panels: Google ("google") or our algorithm ("own",
+    solary/layout.py); when the map layers for ours are unavailable Google's layout is used and
+    the result has the warning "layout_fallback".
     """
     purge_expired(cfg)
     label, house_level, alternatives = None, True, []
@@ -43,18 +50,26 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
         raise SolaryError("kwp must be greater than 0")
     if panels is not None and panels < 1:
         raise SolaryError("panels must be at least 1")
+    if cfg.layout not in ("google", "own"):
+        raise SolaryError(f"unknown layout {cfg.layout!r}: use 'google' or 'own'")
 
     warnings = [] if house_level else ["street_only"]
     base = {"query": {"address": address, "lat": lat, "lon": lon}, "address_label": label,
             "house_level": house_level, "alternatives": alternatives, "assumptions": cfg.public(),
             "attribution": ATTRIBUTION}
     try:
-        bi = building_insights(lat, lon, cfg)
-        reason = None if max_panels(bi) else "no_panels_fit"
+        google = bi = building_insights(lat, lon, cfg)
     except RoofNotFound:
-        bi, reason = None, "no_roof_data"
-    if reason:
-        return base | _generic(lat, lon, kwp, tilt, azimuth, reason, warnings, cfg)
+        return base | _generic(lat, lon, kwp, tilt, azimuth, "no_roof_data", warnings, cfg)
+    if cfg.layout == "own":
+        try:
+            bi = _own_layout(google, images, cfg)
+        except (SolarApiError, LayoutUnavailable):   # no height map here: Google's own layout instead
+            warnings.append("layout_fallback")
+            cfg = dataclasses.replace(cfg, layout="google")
+            base["assumptions"] = cfg.public()
+    if not max_panels(bi):
+        return base | _generic(lat, lon, kwp, tilt, azimuth, "no_panels_fit", warnings, cfg)
 
     n = min(panels, max_panels(bi)) if panels is not None else panels_for_kwp(bi, kwp or cfg.default_kwp, cfg)
     selected = estimate_roof(bi, n, cfg)
@@ -89,7 +104,27 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
         "selected": selected,
         "sizes": sizes_table(bi, cfg),
         "images": files,
+        "layout": _layout_info(google, n, cfg),
     }
+
+
+def _own_layout(bi: dict, images: bool, cfg: Config) -> dict:
+    """The building with our panel layout instead of Google's. The layers the previews need are
+    fetched in the same request, so a new building still costs one dataLayers call."""
+    names = LAYOUT_LAYERS + tuple(n for n in LAYERS if images and n not in LAYOUT_LAYERS)
+    layers = data_layers(bi, cfg, names)
+    return with_own_layout(bi, {n: layers[n] for n in LAYOUT_LAYERS}, cfg)
+
+
+def _layout_info(google: dict, n: int, cfg: Config) -> dict:
+    """Which algorithm placed the panels and, for ours, what Google's layout gives for the same
+    number of panels: the cross-check shown next to the result."""
+    if cfg.layout != "own":
+        return {"algorithm": "google"}
+    theirs = ordered_panels(google, cfg)
+    kwh = sum(float(p.get("yearlyEnergyDcKwh", 0.0)) for p in theirs[:n]) * energy_scale(google, cfg) * cfg.ac_factor
+    return {"algorithm": "own", "margin_m": cfg.layout_margin_m, "gap_m": cfg.layout_gap_m,
+            "google_max_panels": len(theirs), "google_kwh_year": kwh if 0 < n <= len(theirs) else None}
 
 
 def _generic(lat: float, lon: float, kwp: float | None, tilt: float | None, azimuth: float | None,
@@ -113,10 +148,13 @@ def _render_all(bi: dict, lat: float, lon: float, n: int, cfg: Config) -> dict[s
     centre = bi["center"]
     building = tag(centre["latitude"], centre["longitude"])
     panels = ordered_panels(bi, cfg)
+    # our layout depends on its settings, so their id is part of the file names
+    own = f"own-{layout_key(cfg)}" if cfg.layout == "own" else ""
+    order = own + ("-yield" if cfg.panel_order == "yield" else "") if own else cfg.panel_order
     paths = {
         "confirm": render(bi, layers, cfg.roof_dir / f"confirm_{building}_{tag(lat, lon)}.png", [],
                           flux_alpha=0.0, mark=(lat, lon), outline=True),
-        "all": render(bi, layers, cfg.roof_dir / f"panels_{building}_all.png", panels),
-        "selected": render(bi, layers, cfg.roof_dir / f"panels_{building}_{cfg.panel_order}_{n}.png", panels[:n]),
+        "all": render(bi, layers, cfg.roof_dir / f"panels_{building}_{own + '_' if own else ''}all.png", panels),
+        "selected": render(bi, layers, cfg.roof_dir / f"panels_{building}_{order}_{n}.png", panels[:n]),
     }
     return {k: p.name for k, p in paths.items()}

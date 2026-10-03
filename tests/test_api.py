@@ -38,9 +38,26 @@ def test_roof_passes_the_parameters_and_turns_file_names_into_urls(client, monke
                     "tilt": 30.0, "azimuth": 90.0}
 
 
+def test_roof_with_our_layout(client, monkeypatch):
+    seen = {}
+
+    def analyze(**kwargs):
+        seen.update(kwargs)
+        return {"roof_available": True, "images": {}}
+
+    monkeypatch.setattr(api, "analyze", analyze)
+    assert client.get("/api/roof", params={"address": "Mariacka 1, Katowice", "layout": "own"}).status_code == 200
+    assert seen["cfg"].layout == "own" and seen["cfg"].layout_margin_m == api.CONFIG.layout_margin_m
+    client.get("/api/roof", params={"address": "Mariacka 1, Katowice", "layout": "own", "margin": 0.5})
+    assert seen["cfg"].layout == "own" and seen["cfg"].layout_margin_m == 0.5
+    assert seen["cfg"].data_dir == api.CONFIG.data_dir             # everything else as configured
+
+
 @pytest.mark.parametrize("params", [{}, {"lat": 52}, {"address": "  "}, {"lat": 100, "lon": 19},
                                     {"lat": 52, "lon": 19, "kwp": 0}, {"lat": 52, "lon": 19, "panels": 0},
-                                    {"lat": 52, "lon": 19, "tilt": 91}, {"address": "x" * 301}])
+                                    {"lat": 52, "lon": 19, "tilt": 91}, {"address": "x" * 301},
+                                    {"address": "x", "layout": "magic"}, {"address": "x", "margin": -1},
+                                    {"address": "x", "margin": 3}])
 def test_bad_requests(client, monkeypatch, params):
     monkeypatch.setattr(api, "analyze", lambda **k: pytest.fail("must not be called"))
     assert client.get("/api/roof", params=params).status_code in (400, 422)

@@ -36,6 +36,19 @@ class Config:
     # power and energy linearly; valid only for panels of about the same size (~1.95 m2).
     panel_watts: float | None = None
 
+    # --- panel layout (solary/layout.py) -------------------------------------------------------
+    # "google" = the panels Google laid out; "own" = our algorithm on the Solar API map layers
+    # (one more download per building: the height map). SOLARY_LAYOUT sets the default.
+    layout: str = field(default_factory=lambda: os.environ.get("SOLARY_LAYOUT", "google"))
+    layout_margin_m: float = 0.2       # free roof kept around every panel: edges, ridges, chimneys
+    layout_gap_m: float = 0.02         # between neighbouring panels (mounting clamps)
+    layout_height_tol_m: float = 0.15  # a roof pixel further than this from its segment's plane is an obstacle
+    layout_max_pitch_deg: float = 60.0  # no panels on steeper segments
+    layout_compactness: float = 0.08   # bonus per touching panel when the next panel is chosen (0 = best-first)
+    layout_shift_rows: bool = True     # a row may shift by half a panel when that fits one more panel
+    # (height, width) in metres for our layout; None = Google's panel. Set panel_watts with it.
+    panel_size_m: tuple[float, float] | None = None
+
     # --- production estimate -----------------------------------------------------------------
     # DC -> AC: inverter, cables, soiling, mismatch. 14 % is the PVGIS default.
     system_loss_pct: float = 14.0
@@ -60,6 +73,9 @@ class Config:
             "system_loss_pct": self.system_loss_pct,
             "panel_watts_override": self.panel_watts,
             "panel_order": self.panel_order,
+            "layout": self.layout,
+            "layout_margin_m": self.layout_margin_m,
+            "layout_gap_m": self.layout_gap_m,
             "pvgis_mounting": self.pvgis_mounting,
             "search_country_codes": self.country_codes,
             "cache_days": self.cache_days,

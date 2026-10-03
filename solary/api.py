@@ -5,6 +5,7 @@
 GET /api/health                     {"ok": true, "google_key": true|false}
 GET /api/roof?address=...&kwp=6     roof, panel layout and production (see README for the fields)
 GET /api/roof?lat=..&lon=..&panels=15
+GET /api/roof?address=...&layout=own&margin=0.2   panels placed by our algorithm instead of Google's
 GET /api/roof/image/{name}          PNG previews named in the "images" field
 
 Set SOLARY_CORS_ORIGINS (comma-separated) when the frontend runs on another origin.
@@ -13,6 +14,7 @@ Set SOLARY_CORS_ORIGINS (comma-separated) when the frontend runs on another orig
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import re
 import threading
@@ -50,14 +52,18 @@ def roof(address: str | None = Query(None, max_length=300),
          lat: float | None = Query(None, ge=-90, le=90), lon: float | None = Query(None, ge=-180, le=180),
          kwp: float | None = Query(None, gt=0, le=1000), panels: int | None = Query(None, ge=1, le=100000),
          tilt: float | None = Query(None, ge=0, le=90), azimuth: float | None = Query(None, ge=0, le=360),
-         images: bool = True):
-    """Roof at `address` (or lat/lon) with the best `panels` panels (or those closest to `kwp`)."""
+         images: bool = True, layout: str | None = Query(None, pattern="^(google|own)$"),
+         margin: float | None = Query(None, ge=0, le=2)):
+    """Roof at `address` (or lat/lon) with the best `panels` panels (or those closest to `kwp`).
+    `layout=own` places the panels with our algorithm, keeping `margin` metres free around each."""
     if not (address and address.strip()) and (lat is None or lon is None):
         raise HTTPException(400, "give an address, or both lat and lon")
+    changes = {k: v for k, v in {"layout": layout, "layout_margin_m": margin}.items() if v is not None}
+    how = {"cfg": dataclasses.replace(CONFIG, **changes)} if changes else {}
     try:
         with _lock:
             res = analyze(address=address, lat=lat, lon=lon, kwp=kwp, panels=panels, images=images,
-                          tilt=tilt, azimuth=azimuth)
+                          tilt=tilt, azimuth=azimuth, **how)
     except AddressNotFound as e:
         raise HTTPException(404, str(e)) from e
     except MissingApiKey as e:

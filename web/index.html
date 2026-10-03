@@ -91,6 +91,16 @@
       <input type="text" id="address" placeholder="np. Mariacka 1, Katowice" autocomplete="street-address" aria-label="Adres budynku" required>
       <button class="btn" id="go" type="submit">Szukaj</button>
     </form>
+    <div class="row">
+      <span class="small">Kto rozmieszcza panele:</span>
+      <div class="row" id="layouts" role="group" aria-label="Algorytm rozmieszczenia paneli"></div>
+      <label class="small" id="marginBox">Odstęp od krawędzi i przeszkód
+        <select id="margin">
+          <option value="0.1">10 cm</option><option value="0.2" selected>20 cm</option>
+          <option value="0.3">30 cm</option><option value="0.5">50 cm</option>
+        </select>
+      </label>
+    </div>
     <p class="small">Działa tam, gdzie Google Solar API ma dane o dachach (głównie większe miasta). Poza zasięgiem pokażemy szacunek bez rozmieszczenia paneli.</p>
   </section>
 
@@ -126,6 +136,7 @@
           <label for="slider" id="sliderLabel"></label>
           <input type="range" id="slider" min="1" max="1" step="1" value="1">
           <p class="small" id="pvgisNote"></p>
+          <p class="small" id="layoutNote"></p>
         </section>
       </div>
 
@@ -189,7 +200,9 @@ const WARNINGS = {
   far_from_address: 'Znaleziony budynek leży dalej od adresu. Sprawdź na widoku „Mój dom?”, czy to właściwy dach.',
   monthly_fallback: 'Serwis PVGIS nie odpowiada: podział na miesiące to typowy profil dla Polski.',
   images_unavailable: 'Nie udało się pobrać zdjęcia dachu, pokazujemy same liczby.',
+  layout_fallback: 'Nie udało się pobrać mapy wysokości dachu, więc panele rozmieścił Google, a nie nasz algorytm.',
 };
+const LAYOUTS = [['own', 'Nasz algorytm'], ['google', 'Google']];
 const REASONS = {
   no_roof_data: 'Google Solar API nie ma danych o dachu pod tym adresem, więc nie rozmieścimy paneli. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
   no_panels_fit: 'Na znalezionym dachu nie mieści się żaden panel. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
@@ -204,6 +217,7 @@ const VIEW_ALT = {
 let query = null;      // {address} or {lat, lon}: what the size controls re-send
 let pickedLabel = null; // label of an alternative chosen from the "other matches" list
 let view = 'selected';
+let layout = 'own';     // who places the panels: sent with every request
 let data = null;
 let request = 0;
 
@@ -221,7 +235,7 @@ async function load(params) {
   $('result').classList.add('loading');
   $('go').disabled = true;
   try {
-    const r = await fetch('/api/roof?' + new URLSearchParams(params));
+    const r = await fetch('/api/roof?' + new URLSearchParams({ ...params, ...layoutParams() }));
     const body = await r.json().catch(() => ({}));
     if (mine !== request) return;
     if (!r.ok) throw { status: r.status, detail: body.detail };
@@ -295,6 +309,7 @@ function showRoof(d) {
   $('pvgisNote').textContent = s.pvgis_kwh_year
     ? `Dla porównania: PVGIS dla tych samych paneli, bez lokalnych cieni, daje ${nf0.format(s.pvgis_kwh_year)} kWh rocznie.`
     : '';
+  $('layoutNote').textContent = layoutNote(d.layout || { algorithm: 'google' });
   $('imagery').textContent = `Dach ${nf0.format(b.roof_area_m2)} m², mieści ${nf0.format(b.max_panels)} paneli. Zdjęcie z ${b.imagery_date || '?'}, jakość ${b.imagery_quality}. Kolory na dachu: im jaśniej, tym więcej słońca w roku.`;
   showViews(d);
   drawChart(s.monthly_kwh);
@@ -315,6 +330,45 @@ function showRoof(d) {
         u ? nf0.format(u.kwh_per_kwp) : '–', u && u.pvgis_kwh_per_kwp ? nf0.format(u.pvgis_kwh_per_kwp) : '–'] };
     }));
   $('segNote').textContent = `Panel: ${nf0.format(d.panel.watts)} W, ${String(d.panel.height_m).replace('.', ',')} × ${String(d.panel.width_m).replace('.', ',')} m. Straty systemu: ${nf0.format(d.assumptions.system_loss_pct)}%. „PVGIS z 1 kWp” to niezależny szacunek dla tego samego nachylenia i kierunku, bez lokalnych cieni.`;
+}
+
+function layoutParams() {
+  return layout === 'own' ? { layout, margin: $('margin').value } : { layout };
+}
+
+function showLayouts() {
+  const box = $('layouts');
+  box.replaceChildren();
+  for (const [key, name] of LAYOUTS) {
+    const b = el('button', name, { class: 'chip', type: 'button', 'aria-pressed': String(key === layout) });
+    b.addEventListener('click', () => {
+      if (key === layout) return;
+      layout = key;
+      showLayouts();
+      reload();
+    });
+    box.append(b);
+  }
+  $('marginBox').hidden = layout !== 'own';
+}
+
+function reload() {   // the same roof and number of panels, after a change of the layout settings
+  if (!query) return;
+  load(data && data.roof_available ? { ...query, panels: data.selected.panels } : query);
+}
+
+function panelsWord(n) {   // 1 panel, 2-4 panele, 5+ paneli (12-14 too)
+  if (n === 1) return 'panel';
+  return n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'panele' : 'paneli';
+}
+
+function layoutNote(l) {
+  if (l.algorithm !== 'own') return 'Panele rozmieścił algorytm Google (Solar API): bez odstępu od krawędzi dachu.';
+  const theirs = l.google_kwh_year != null
+    ? `Układ Google dla tej samej liczby paneli daje ${nf0.format(l.google_kwh_year)} kWh rocznie.`
+    : `Google mieści na tym dachu najwyżej ${nf0.format(l.google_max_panels)} ${panelsWord(l.google_max_panels)}.`;
+  return `Panele rozmieścił nasz algorytm: zostawia ${nf0.format(l.margin_m * 100)} cm od krawędzi, kalenicy `
+    + `i przeszkód (kominy, lukarny, attyki) i zaczyna od najlepiej nasłonecznionych miejsc. ${theirs}`;
 }
 
 function sliderText(n) {
@@ -468,6 +522,8 @@ $('search').addEventListener('submit', (e) => {
   $('result').hidden = true;
   load(query);
 });
+$('margin').addEventListener('change', reload);
+showLayouts();
 $('slider').addEventListener('input', (e) => sliderText(Number(e.target.value)));
 $('slider').addEventListener('change', (e) => load({ ...query, panels: e.target.value }));
 $('gGo').addEventListener('click', () => {
