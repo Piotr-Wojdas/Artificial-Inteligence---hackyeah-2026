@@ -4,7 +4,8 @@ buildingInsights returns, for the building closest to a coordinate:
   * roof segments - pitch, azimuth, area;
   * every panel that fits (400 W, 1.879 x 1.045 m) with its position, orientation and yearly DC
     energy, already including shade from trees, neighbouring buildings and the roof itself.
-dataLayers adds GeoTIFFs around the building: aerial RGB, building mask, annual solar flux.
+dataLayers adds GeoTIFFs around the building: aerial RGB, building mask, annual solar flux and,
+for our own panel layout (solary/layout.py), the height map (DSM).
 
 The API key is read from the environment, which `solary/env.py` fills from a `.env` file:
 GOOGLE_MAPS_API_KEY=...   (GOOGLE_SOLAR_API_KEY and solar_api are accepted too).
@@ -28,7 +29,8 @@ from .errors import SolaryError
 
 SOLAR_URL = "https://solar.googleapis.com/v1"
 KEY_NAMES = ("GOOGLE_MAPS_API_KEY", "GOOGLE_SOLAR_API_KEY", "solar_api")
-LAYERS = ("rgb", "mask", "annualFlux")
+LAYERS = ("rgb", "mask", "annualFlux")           # what the PNG previews are drawn from
+LAYOUT_LAYERS = ("mask", "annualFlux", "dsm")    # what our own panel layout is computed from
 
 
 class MissingApiKey(SolaryError):
@@ -118,12 +120,15 @@ def building_insights(lat: float, lon: float, cfg: Config = CONFIG) -> dict:
     raise RoofNotFound("Google Solar API has no roof data for this location")
 
 
-def data_layers(bi: dict, cfg: Config = CONFIG) -> dict[str, Path]:
-    """Download the aerial image, building mask and annual flux GeoTIFFs around the building."""
+def data_layers(bi: dict, cfg: Config = CONFIG, names: tuple[str, ...] = LAYERS) -> dict[str, Path]:
+    """Download GeoTIFFs around the building: by default the aerial image, building mask and
+    annual flux; `names` may also ask for "dsm" (heights in metres above sea level). Layers
+    already on disk are kept, so asking for one more costs one request and one download."""
     c = bi["center"]
     out_dir = cfg.roof_dir / f"layers_{tag(c['latitude'], c['longitude'])}"
-    paths = {n: out_dir / f"{n}.tif" for n in LAYERS}
-    if all(_fresh(p, cfg) for p in paths.values()):
+    paths = {n: out_dir / f"{n}.tif" for n in names}
+    missing = [n for n in names if not _fresh(paths[n], cfg)]
+    if not missing:
         return paths
     sw, ne = bi["boundingBox"]["sw"], bi["boundingBox"]["ne"]
     dy = (ne["latitude"] - sw["latitude"]) * 111_000
@@ -137,7 +142,9 @@ def data_layers(bi: dict, cfg: Config = CONFIG) -> dict[str, Path]:
         raise SolarApiError(f"Google Solar API dataLayers error {r.status_code}: {_error_message(r)}")
     urls = r.json()
     out_dir.mkdir(parents=True, exist_ok=True)
-    for n in LAYERS:
+    for n in missing:
+        if not urls.get(f"{n}Url"):
+            raise SolarApiError(f"Google Solar API has no '{n}' layer for this building")
         g = _get(urls[f"{n}Url"], params={}, timeout=120)
         if not g.ok:
             raise SolarApiError(f"Google Solar API layer '{n}' error {g.status_code}")

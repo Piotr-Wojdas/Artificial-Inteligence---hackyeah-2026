@@ -2,6 +2,7 @@
 
 Prints the roof found, the panels chosen and their yearly and monthly production. With images
 (default) it also saves three PNGs: "is this your house?", all panels, the chosen panels.
+--layout own places the panels with our algorithm (solary/layout.py) instead of Google's.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ WARNINGS = {
                         "check the 'confirm' image",
     "monthly_fallback": "PVGIS unreachable: months follow a typical profile for Poland",
     "images_unavailable": "the map layers could not be downloaded, no images",
+    "layout_fallback": "the height map is unavailable: Google's layout is shown instead of ours",
 }
 REASONS = {
     "no_roof_data": "Google Solar API has no roof data for this location",
@@ -39,8 +41,16 @@ def main() -> int:
     ap.add_argument("--kwp", type=float, help=f"installation size (default {CONFIG.default_kwp:g} kWp)")
     ap.add_argument("--panels", type=int, help="number of panels (instead of --kwp)")
     ap.add_argument("--panel-watts", type=float, help="wattage of one panel (default: Google's 400 W)")
-    ap.add_argument("--order", choices=("google", "yield"), help="which panels are used first: Google's layout "
+    ap.add_argument("--order", choices=("google", "yield"), help="which panels are used first: the layout's own "
                     "order (default, compact arrays) or strictly the highest yield")
+    ap.add_argument("--layout", choices=("google", "own"), help="who places the panels: Google (default) or our "
+                    "algorithm on the roof's height map and solar flux")
+    ap.add_argument("--margin", type=float, help=f"own layout: free roof kept around every panel, in metres "
+                    f"(default {CONFIG.layout_margin_m:g})")
+    ap.add_argument("--gap", type=float, help=f"own layout: gap between panels, in metres "
+                    f"(default {CONFIG.layout_gap_m:g})")
+    ap.add_argument("--panel-size", type=float, nargs=2, metavar=("HEIGHT", "WIDTH"), help="own layout: panel size "
+                    "in metres (default: Google's 1.879 x 1.045); set --panel-watts to match")
     ap.add_argument("--tilt", type=float, help="tilt in degrees, used only when there is no roof data")
     ap.add_argument("--azimuth", type=float, help="compass azimuth (180 = south), used only when there is no roof data")
     ap.add_argument("--no-images", action="store_true", help="skip the map layers and PNG previews")
@@ -56,6 +66,14 @@ def main() -> int:
         cfg = dataclasses.replace(cfg, panel_watts=args.panel_watts)
     if args.order:
         cfg = dataclasses.replace(cfg, panel_order=args.order)
+    if args.layout:
+        cfg = dataclasses.replace(cfg, layout=args.layout)
+    if args.margin is not None:
+        cfg = dataclasses.replace(cfg, layout_margin_m=args.margin)
+    if args.gap is not None:
+        cfg = dataclasses.replace(cfg, layout_gap_m=args.gap)
+    if args.panel_size:
+        cfg = dataclasses.replace(cfg, panel_size_m=tuple(args.panel_size))
     try:
         res = analyze(address=args.address, lat=args.lat, lon=args.lon, kwp=args.kwp, panels=args.panels,
                       images=not args.no_images, tilt=args.tilt, azimuth=args.azimuth, cfg=cfg)
@@ -100,6 +118,12 @@ def _print_roof(res: dict, roof_dir: Path) -> None:
           f"{s['kwh_year']:,.0f} kWh a year ({s['kwh_per_kwp']:,.0f} kWh/kWp)")
     if s["pvgis_kwh_year"]:
         print(f"  PVGIS for the same panels without local shade: {s['pvgis_kwh_year']:,.0f} kWh a year")
+    lay = res["layout"]
+    if lay["algorithm"] == "own":
+        theirs = (f"{lay['google_kwh_year']:,.0f} kWh a year" if lay["google_kwh_year"] is not None
+                  else "none, it fits fewer")
+        print(f"  Layout: ours, {lay['margin_m']:g} m margin and {lay['gap_m']:g} m gap. Google's layout for the "
+              f"same number of panels: {theirs} (Google fits {lay['google_max_panels']} panels at most)")
     print(f"Monthly kWh ({s['monthly_source']}):")
     _print_months(s["monthly_kwh"])
     print("Per segment:")

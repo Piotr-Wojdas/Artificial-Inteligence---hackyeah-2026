@@ -161,3 +161,28 @@ def test_cached_file_is_valid_json(cfg, key, bi, monkeypatch):
     monkeypatch.setattr(api.requests, "get", lambda *a, **k: _Response(200, bi))
     api.building_insights(52.0, 19.0, cfg)
     assert json.loads((cfg.roof_dir / "building_52.00000_19.00000.json").read_text(encoding="utf-8")) == bi
+
+
+def test_data_layers_fetches_only_the_missing_layer(cfg, key, bi, monkeypatch):
+    calls = []
+
+    def get(url, params, timeout):
+        calls.append(url)
+        if url.endswith("dataLayers:get"):
+            return _Response(200, {f"{n}Url": f"https://solar.googleapis.com/v1/geoTiff:get?id={n}"
+                                   for n in ("rgb", "mask", "annualFlux", "dsm")})
+        return _Response(200, content=url.encode())
+
+    monkeypatch.setattr(api.requests, "get", get)
+    api.data_layers(bi, cfg)
+    assert len(calls) == 4
+    paths = api.data_layers(bi, cfg, api.LAYOUT_LAYERS)          # the height map for our own layout
+    assert set(paths) == {"mask", "annualFlux", "dsm"} and paths["dsm"].read_bytes().endswith(b"id=dsm")
+    assert calls[4:] == ["https://solar.googleapis.com/v1/dataLayers:get",
+                         "https://solar.googleapis.com/v1/geoTiff:get?id=dsm"]
+
+
+def test_data_layers_without_the_requested_layer(cfg, key, bi, monkeypatch):
+    monkeypatch.setattr(api.requests, "get", lambda *a, **k: _Response(200, {"rgbUrl": "x", "maskUrl": "y"}))
+    with pytest.raises(api.SolarApiError, match="dsm"):
+        api.data_layers(bi, cfg, ("dsm",))

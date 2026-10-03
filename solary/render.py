@@ -97,6 +97,7 @@ def render(bi: dict, layers: dict[str, Path], out: Path, panels: list[dict], flu
                       [p["center"]["latitude"] for p in panels])
         for p, x, y in zip(panels, xs, ys):
             pitch, azimuth = segment_geometry(bi, int(p.get("segmentIndex", 0)))
+            azimuth = float(p.get("azimuthDegrees", azimuth))   # our own layout turns panels on flat roofs
             corners = panel_corners_m(x, y, pitch, azimuth, p.get("orientation", "LANDSCAPE") == "PORTRAIT",
                                       height_m, width_m)
             draw.polygon([_pixel(to_px, *c) for c in corners], outline=PANEL_EDGE, fill=PANEL_FILL)
