@@ -7,6 +7,8 @@ GET /api/roof?address=...&kwp=6     roof, panel layout and production (see READM
 GET /api/roof?lat=..&lon=..&panels=15
 GET /api/roof?address=...&layout=own&margin=0.2   panels placed by our algorithm instead of Google's
 GET /api/roof/image/{name}          PNG previews named in the "images" field
+GET /api/battery?lat=..&lon=..&planes=6:35:180&battery_kwh=10&annual_kwh=4000&tariff=g11
+                                    battery: yearly savings and the plan for today and tomorrow
 
 Set SOLARY_CORS_ORIGINS (comma-separated) when the frontend runs on another origin.
 """
@@ -84,6 +86,45 @@ def roof(address: str | None = Query(None, max_length=300),
         raise HTTPException(400, str(e)) from e
     res["images"] = {k: f"/api/roof/image/{name}" for k, name in res["images"].items()}
     return res
+
+
+def parse_planes(text: str) -> list[tuple[float, float, float]]:
+    """ "kWp:tilt:azimuth,..." -> [(kWp, tilt, azimuth), ...]"""
+    planes = []
+    for part in text.split(","):
+        kwp, tilt, azimuth = (float(v) for v in part.split(":"))
+        if not (0 < kwp <= 1000 and 0 <= tilt <= 90 and 0 <= azimuth <= 360):
+            raise ValueError(part)
+        planes.append((kwp, tilt, azimuth))
+    return planes
+
+
+@app.get("/api/battery")
+def battery(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
+            planes: str = Query("6:35:180", max_length=400, pattern=r"^[0-9.:,]+$"),
+            kwh_year: float | None = Query(None, gt=0, le=1_000_000),
+            battery_kwh: float = Query(10.0, gt=0, le=200), battery_kw: float | None = Query(None, gt=0, le=100),
+            annual_kwh: float = Query(4000.0, gt=0, le=100_000), tariff: str = Query("g11", pattern="^(g11|dynamic)$"),
+            soc: float = Query(0.5, ge=0, le=1), plan: bool = True):
+    """Battery for a house with PV `planes` ("kWp:tilt:azimuth,..."): bills over the test year
+    without a battery, with the usual inverter, with the RL agent and at the optimum; and the
+    agent's plan from now to the end of tomorrow. `kwh_year` rescales PV to the roof analysis."""
+    from .battery.data import BatteryDataError
+    from .battery.model import Battery, Tariff
+    from .battery.plan import battery_report
+
+    try:
+        pv = parse_planes(planes)
+    except ValueError as e:
+        raise HTTPException(400, "planes must be kWp:tilt:azimuth[,kWp:tilt:azimuth...]") from e
+    store = Battery(capacity_kwh=battery_kwh, power_kw=battery_kw or battery_kwh / 2)
+    try:
+        with _lock:
+            return battery_report(lat, lon, pv, annual_kwh, store, Tariff(kind=tariff), soc, kwh_year, plan)
+    except BatteryDataError as e:
+        raise HTTPException(502, str(e)) from e
+    except SolaryError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @app.get("/api/roof/image/{name}")
