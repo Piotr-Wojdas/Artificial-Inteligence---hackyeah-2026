@@ -1,0 +1,18 @@
+[project]
+name = "hackathonus"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "lightgbm>=4.7.0",
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+    "pillow>=12.3.0",
+    "pyproj>=3.8.0",
+    "rasterio>=1.5.1",
+    "requests>=2.34.2",
+    "scikit-learn>=1.9.1",
+    "uvicorn[standard]>=0.54.0",
+]

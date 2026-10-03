@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solary – panele na Twoim dachu</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f3f8f4; --surface: #ffffff; --border: #d6e5dc; --soft: #eaf5ee;
+    --text: #17251e; --text-2: #4e6157; --text-3: #5f7166;
+    --accent: #217346; --accent-ink: #ffffff; --series-1: #217346; --series-1-hover: #2f8d59;
+    --grid: #e3ece6; --warn-bg: #fff7e8; --warn-border: #f1dfc0; --warn-text: #7a4b0c;
+    --err-bg: #fdecec; --err-border: #f5b5b5; --err-text: #8f1d1d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #101713; --surface: #18211c; --border: #2c3a32; --soft: #1f2c25;
+      --text: #f1f7f2; --text-2: #c2d1c8; --text-3: #a3b5aa;
+      --accent: #3fa56d; --accent-ink: #0c1510; --series-1: #3fa56d; --series-1-hover: #5cbd87;
+      --grid: #26332b; --warn-bg: #2e2717; --warn-border: #5a4a22; --warn-text: #f0d59b;
+      --err-bg: #331b1b; --err-border: #6b2e2e; --err-text: #f6c1c1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 26px; margin: 0; line-height: 1.2; }
+  h2 { font-size: 16px; margin: 0; }
+  p { margin: 0; }
+  .sub { color: var(--text-2); }
+  .small { font-size: 13px; color: var(--text-3); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  form.search { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type=text], input[type=number], select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+  form.search input[type=text] { flex: 1 1 260px; }
+  button { font: inherit; cursor: pointer; }
+  .btn { background: var(--accent); color: var(--accent-ink); border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; }
+  .btn:disabled { opacity: .6; cursor: progress; }
+  .chip { background: var(--soft); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+  .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .notice { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+  .notice.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+  .notice.err { background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+  .roof-img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: var(--soft); border-radius: 12px; display: block; }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tile { background: var(--soft); border-radius: 12px; padding: 10px 12px; }
+  .tile .label { font-size: 13px; color: var(--text-2); }
+  .tile .value { font-size: 22px; font-weight: 650; }
+  .hero .value { font-size: 48px; font-weight: 650; line-height: 1.1; }
+  .hero .label { color: var(--text-2); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { color: var(--text-2); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.current td { background: var(--soft); font-weight: 650; }
+  tr.pick { cursor: pointer; }
+  tr.pick:hover td { background: var(--soft); }
+  .table-scroll { overflow-x: auto; }
+  .chart { position: relative; }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .chart .bar { fill: var(--series-1); }
+  .chart .hit { fill: transparent; outline: none; }
+  .chart .hit:hover + .bar, .chart .hit:focus-visible + .bar { fill: var(--series-1-hover); }
+  .chart .grid { stroke: var(--grid); stroke-width: 1; }
+  .chart text { fill: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chart text.peak { fill: var(--text); font-weight: 650; }
+  .chart svg.hovering text.peak { visibility: hidden; }  /* the tooltip takes its place */
+  .tip { position: absolute; pointer-events: none; background: var(--text); color: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 13px; white-space: nowrap; transform: translate(-50%, -100%); display: none; }
+  .tip b { font-size: 15px; }
+  details summary { cursor: pointer; color: var(--text-2); font-size: 14px; }
+  .loading { opacity: .55; transition: opacity .15s; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Solary – panele na Twoim dachu</h1>
+    <p class="sub">Wpisz adres. Znajdziemy budynek, rozmieścimy panele na dachu i policzymy, ile prądu wyprodukują w ciągu roku.</p>
+  </header>
+
+  <section class="card">
+    <form class="search" id="search">
+      <input type="text" id="address" placeholder="np. Mariacka 1, Katowice" autocomplete="street-address" aria-label="Adres budynku" required>
+      <button class="btn" id="go" type="submit">Szukaj</button>
+    </form>
+    <p class="small">Działa tam, gdzie Google Solar API ma dane o dachach (głównie większe miasta). Poza zasięgiem pokażemy szacunek bez rozmieszczenia paneli.</p>
+  </section>
+
+  <div id="error" class="notice err" role="alert" hidden></div>
+  <div id="busy" class="small" role="status" hidden>Analizuję dach… za pierwszym razem trwa to około 10–20 sekund.</div>
+
+  <div id="result" hidden>
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <section class="card">
+        <h2 id="label"></h2>
+        <div id="alts" class="row" hidden></div>
+        <div id="warnings" style="display:flex; flex-direction:column; gap:8px"></div>
+      </section>
+
+      <!-- roof found -->
+      <div id="roof" class="grid2" hidden>
+        <section class="card">
+          <img id="img" class="roof-img" alt="">
+          <div class="row" id="views" role="group" aria-label="Widok dachu"></div>
+          <p class="small" id="imagery"></p>
+        </section>
+        <section class="card">
+          <div class="hero">
+            <div class="label">Roczna produkcja</div>
+            <div class="value" id="kwhYear"></div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="label">Moc instalacji</div><div class="value" id="kwp"></div></div>
+            <div class="tile"><div class="label">Liczba paneli</div><div class="value" id="panels"></div></div>
+            <div class="tile"><div class="label">Uzysk z 1 kWp</div><div class="value" id="perKwp"></div></div>
+            <div class="tile"><div class="label">Maks. na tym dachu</div><div class="value" id="maxKwp"></div></div>
+          </div>
+          <label for="slider" id="sliderLabel"></label>
+          <input type="range" id="slider" min="1" max="1" step="1" value="1">
+          <p class="small" id="pvgisNote"></p>
+        </section>
+      </div>
+
+      <!-- no roof data -->
+      <section id="generic" class="card" hidden>
+        <div class="hero">
+          <div class="label">Szacunkowa roczna produkcja</div>
+          <div class="value" id="gKwhYear"></div>
+        </div>
+        <div class="row">
+          <label>Moc (kWp) <input type="number" id="gKwp" min="0.4" max="1000" step="0.1" style="width:110px"></label>
+          <label>Nachylenie (°) <input type="number" id="gTilt" min="0" max="90" step="1" style="width:90px"></label>
+          <label>Kierunek
+            <select id="gAz">
+              <option value="180">południe</option><option value="135">południowy wschód</option>
+              <option value="225">południowy zachód</option><option value="90">wschód</option>
+              <option value="270">zachód</option><option value="45">północny wschód</option>
+              <option value="315">północny zachód</option><option value="0">północ</option>
+            </select>
+          </label>
+          <button class="btn" id="gGo" type="button">Przelicz</button>
+        </div>
+        <p class="small" id="gNote"></p>
+      </section>
+
+      <section class="card">
+        <h2>Produkcja w kolejnych miesiącach (kWh)</h2>
+        <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+        <details>
+          <summary>Pokaż jako tabelę</summary>
+          <div class="table-scroll"><table id="monthTable"></table></div>
+        </details>
+        <p class="small" id="monthNote"></p>
+      </section>
+
+      <section class="card">
+        <h2>Inne wielkości instalacji</h2>
+        <div class="table-scroll"><table id="sizes"></table></div>
+      </section>
+
+      <section class="card" id="segCard" hidden>
+        <h2>Połacie dachu</h2>
+        <div class="table-scroll"><table id="segments"></table></div>
+        <p class="small" id="segNote"></p>
+      </section>
+
+      <p class="small" id="attribution"></p>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const nf0 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const MONTHS = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+const MONTHS_FULL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+const FACING = { N: 'północ', NE: 'płn.-wsch.', E: 'wschód', SE: 'płd.-wsch.', S: 'południe', SW: 'płd.-zach.', W: 'zachód', NW: 'płn.-zach.' };
+const WARNINGS = {
+  street_only: 'Znaleźliśmy tylko ulicę, bez numeru domu. Wskazany budynek może być przypadkowy – dopisz numer.',
+  far_from_address: 'Znaleziony budynek leży dalej od adresu. Sprawdź na widoku „Mój dom?”, czy to właściwy dach.',
+  monthly_fallback: 'Serwis PVGIS nie odpowiada: podział na miesiące to typowy profil dla Polski.',
+  images_unavailable: 'Nie udało się pobrać zdjęcia dachu, pokazujemy same liczby.',
+};
+const REASONS = {
+  no_roof_data: 'Google Solar API nie ma danych o dachu pod tym adresem, więc nie rozmieścimy paneli. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
+  no_panels_fit: 'Na znalezionym dachu nie mieści się żaden panel. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
+};
+const VIEWS = [['selected', 'Wybrane panele'], ['all', 'Wszystkie panele'], ['confirm', 'Mój dom?']];
+const VIEW_ALT = {
+  selected: 'Zdjęcie lotnicze dachu z wybranymi panelami i mapą nasłonecznienia',
+  all: 'Zdjęcie lotnicze dachu ze wszystkimi panelami, które się mieszczą',
+  confirm: 'Zdjęcie lotnicze: czerwona kropka to szukany adres, czerwona ramka to znaleziony budynek',
+};
+
+let query = null;      // {address} or {lat, lon}: what the size controls re-send
+let pickedLabel = null; // label of an alternative chosen from the "other matches" list
+let view = 'selected';
+let data = null;
+let request = 0;
+
+function el(tag, text, attrs = {}) {
+  const e = document.createElement(tag);
+  if (text != null) e.textContent = text;
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+async function load(params) {
+  const mine = ++request;
+  $('error').hidden = true;
+  $('busy').hidden = Boolean(data);
+  $('result').classList.add('loading');
+  $('go').disabled = true;
+  try {
+    const r = await fetch('/api/roof?' + new URLSearchParams(params));
+    const body = await r.json().catch(() => ({}));
+    if (mine !== request) return;
+    if (!r.ok) throw { status: r.status, detail: body.detail };
+    data = body;
+    show();
+  } catch (e) {
+    if (mine !== request) return;
+    const byStatus = {
+      404: 'Nie znaleziono takiego adresu. Dopisz miasto i numer domu.',
+      503: 'Na serwerze brakuje klucza Google Solar API (plik .env).',
+      502: 'Usługa zewnętrzna nie odpowiada (Google Solar API albo wyszukiwarka adresów). Spróbuj ponownie za chwilę.',
+    };
+    const detail = typeof e.detail === 'string' ? e.detail : '';
+    $('error').textContent = byStatus[e.status] || detail || 'Nie udało się połączyć z serwerem.';
+    $('error').hidden = false;
+  } finally {
+    if (mine === request) {
+      $('busy').hidden = true;
+      $('result').classList.remove('loading');
+      $('go').disabled = false;
+    }
+  }
+}
+
+function show() {
+  const d = data;
+  $('result').hidden = false;
+  $('label').textContent = d.address_label || pickedLabel || `${d.query.lat.toFixed(5)}, ${d.query.lon.toFixed(5)}`;
+
+  const alts = $('alts');
+  alts.replaceChildren();
+  alts.hidden = !d.alternatives.length;
+  if (d.alternatives.length) {
+    alts.append(el('span', 'Inne dopasowania:', { class: 'small' }));
+    for (const a of d.alternatives) {
+      const b = el('button', a.label.split(',').slice(0, 4).join(','), { class: 'chip', type: 'button', title: a.label });
+      b.addEventListener('click', () => {
+        query = { lat: a.lat, lon: a.lon };
+        pickedLabel = a.label;
+        load(query);
+      });
+      alts.append(b);
+    }
+  }
+
+  const warnings = $('warnings');
+  warnings.replaceChildren();
+  if (!d.roof_available) warnings.append(el('div', REASONS[d.reason] || d.reason, { class: 'notice warn' }));
+  for (const w of d.warnings) warnings.append(el('div', WARNINGS[w] || w, { class: 'notice warn' }));
+
+  $('roof').hidden = !d.roof_available;
+  $('generic').hidden = d.roof_available;
+  $('segCard').hidden = !d.roof_available;
+  if (d.roof_available) showRoof(d); else showGeneric(d);
+  $('attribution').textContent = d.roof_available
+    ? `Dane dachu i zdjęcia © Google (Solar API). Wyszukiwanie adresów © autorzy OpenStreetMap. Profil miesięczny: PVGIS © Unia Europejska. Dane dachu przechowujemy najwyżej ${d.assumptions.cache_days} dni. Wyniki są szacunkowe.`
+    : 'Wyszukiwanie adresów © autorzy OpenStreetMap. Szacunek produkcji: PVGIS © Unia Europejska. Wyniki są szacunkowe.';
+}
+
+function showRoof(d) {
+  const s = d.selected, b = d.building;
+  $('kwhYear').textContent = nf0.format(s.kwh_year) + ' kWh';
+  $('kwp').textContent = nf1.format(s.kwp) + ' kWp';
+  $('panels').textContent = nf0.format(s.panels);
+  $('perKwp').textContent = nf0.format(s.kwh_per_kwp) + ' kWh';
+  $('maxKwp').textContent = nf1.format(b.max_kwp) + ' kWp';
+  const slider = $('slider');
+  slider.max = b.max_panels;
+  slider.value = s.panels;
+  sliderText(s.panels);
+  $('pvgisNote').textContent = s.pvgis_kwh_year
+    ? `Dla porównania: PVGIS dla tych samych paneli, bez lokalnych cieni, daje ${nf0.format(s.pvgis_kwh_year)} kWh rocznie.`
+    : '';
+  $('imagery').textContent = `Dach ${nf0.format(b.roof_area_m2)} m², mieści ${nf0.format(b.max_panels)} paneli. Zdjęcie z ${b.imagery_date || '?'}, jakość ${b.imagery_quality}. Kolory na dachu: im jaśniej, tym więcej słońca w roku.`;
+  showViews(d);
+  drawChart(s.monthly_kwh);
+  monthNote(s.monthly_source);
+
+  fillTable($('sizes'), ['Moc', 'Panele', 'kWh rocznie', 'kWh z 1 kWp'], d.sizes.map((r) => ({
+    cells: [nf1.format(r.kwp) + ' kWp', nf0.format(r.panels), nf0.format(r.kwh_year), nf0.format(r.kwh_per_kwp)],
+    current: r.panels === s.panels,
+    onClick: () => load({ ...query, panels: r.panels }),
+  })));
+
+  const used = new Map(s.per_segment.map((r) => [r.segment, r]));
+  fillTable($('segments'), ['Kierunek', 'Nachylenie', 'Powierzchnia', 'Mieści paneli', 'Wybrane', 'kWh rocznie', 'kWh z 1 kWp', 'PVGIS z 1 kWp'],
+    d.segments.filter((r) => r.max_panels > 0).map((r) => {
+      const u = used.get(r.segment);
+      return { current: Boolean(u), cells: [FACING[r.facing] || r.facing, nf0.format(r.pitch_deg) + '°', nf0.format(r.area_m2) + ' m²',
+        nf0.format(r.max_panels), u ? nf0.format(u.panels) : '–', u ? nf0.format(u.kwh_year) : '–',
+        u ? nf0.format(u.kwh_per_kwp) : '–', u && u.pvgis_kwh_per_kwp ? nf0.format(u.pvgis_kwh_per_kwp) : '–'] };
+    }));
+  $('segNote').textContent = `Panel: ${nf0.format(d.panel.watts)} W, ${String(d.panel.height_m).replace('.', ',')} × ${String(d.panel.width_m).replace('.', ',')} m. Straty systemu: ${nf0.format(d.assumptions.system_loss_pct)}%. „PVGIS z 1 kWp” to niezależny szacunek dla tego samego nachylenia i kierunku, bez lokalnych cieni.`;
+}
+
+function sliderText(n) {
+  const w = data.panel.watts;
+  $('sliderLabel').textContent = `Wielkość instalacji: ${nf0.format(n)} × ${nf0.format(w)} W = ${nf1.format(n * w / 1000)} kWp`;
+}
+
+function showViews(d) {
+  const box = $('views');
+  box.replaceChildren();
+  if (!d.images[view]) view = 'selected';
+  for (const [key, name] of VIEWS) {
+    if (!d.images[key]) continue;
+    const b = el('button', name, { class: 'chip', type: 'button', 'aria-pressed': String(key === view) });
+    b.addEventListener('click', () => { view = key; showViews(data); });
+    box.append(b);
+  }
+  const img = $('img');
+  img.hidden = !d.images[view];
+  if (d.images[view]) { img.src = d.images[view]; img.alt = VIEW_ALT[view]; }
+}
+
+function showGeneric(d) {
+  const g = d.generic;
+  $('gKwhYear').textContent = nf0.format(g.kwh_year) + ' kWh';
+  $('gKwp').value = g.kwp;
+  $('gTilt').value = g.tilt_deg;
+  $('gAz').value = String(g.azimuth_deg);
+  $('gNote').textContent = `Uzysk z 1 kWp: ${nf0.format(g.kwh_per_kwp)} kWh rocznie. Szacunek nie uwzględnia cieni drzew i sąsiednich budynków.`;
+  drawChart(g.monthly_kwh);
+  monthNote(g.monthly_source);
+  fillTable($('sizes'), ['Moc', 'kWh rocznie', 'kWh z 1 kWp'], d.sizes.map((r) => ({
+    cells: [nf1.format(r.kwp) + ' kWp', nf0.format(r.kwh_year), nf0.format(r.kwh_per_kwp)],
+    current: Math.abs(r.kwp - g.kwp) < 1e-9,
+    onClick: () => load({ ...query, kwp: r.kwp, tilt: g.tilt_deg, azimuth: g.azimuth_deg }),
+  })));
+}
+
+function monthNote(source) {
+  $('monthNote').textContent = source === 'pvgis'
+    ? 'Podział roku na miesiące: PVGIS dla współrzędnych tego dachu.'
+    : 'Podział roku na miesiące: typowy profil dla Polski (PVGIS chwilowo niedostępny).';
+}
+
+function fillTable(table, head, rows) {
+  table.replaceChildren();
+  const tr = el('tr');
+  for (const h of head) tr.append(el('th', h, { scope: 'col' }));
+  table.append(tr);
+  for (const row of rows) {
+    const r = el('tr');
+    if (row.current) r.classList.add('current');
+    for (const c of row.cells) r.append(el('td', c));
+    if (row.onClick) {
+      r.classList.add('pick');
+      r.tabIndex = 0;
+      r.addEventListener('click', row.onClick);
+      r.addEventListener('keydown', (e) => { if (e.key === 'Enter') row.onClick(); });
+    }
+    table.append(r);
+  }
+}
+
+// ---- monthly bar chart: one series, hairline grid, value on the peak, tooltip on hover and focus
+function niceStep(max) {
+  const raw = max / 4, mag = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+}
+
+let lastMonthly = null, lastWidth = 0;
+
+function drawChart(monthly) {
+  lastMonthly = monthly;
+  const NS = 'http://www.w3.org/2000/svg';
+  const chart = $('chart'), tip = $('tip');
+  lastWidth = Math.round(chart.clientWidth);
+  // drawn 1:1 in CSS pixels at the container's width, so labels stay readable on a phone
+  const W = Math.max(280, Math.round(chart.clientWidth) || 640), H = W < 480 ? 220 : 280;
+  const L = 48, R = 6, T = 44, B = 26;   // the top margin leaves room for the tooltip above the tallest bar
+  chart.querySelector('svg')?.remove();
+  tip.style.display = 'none';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Wykres słupkowy: produkcja energii w kolejnych miesiącach, w kWh');
+  const add = (tag, attrs, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (text != null) n.textContent = text;
+    svg.append(n);
+    return n;
+  };
+  const max = Math.max(...monthly, 1);
+  const step = niceStep(max);
+  const top = Math.ceil(max / step) * step;
+  const y = (v) => T + (H - T - B) * (1 - v / top);
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
+    add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, nf0.format(v));
+  }
+  const band = (W - L - R) / 12, bw = Math.min(24, Math.max(band - 8, 6));
+  const names = band < 30 ? MONTHS.map((m) => m[0].toUpperCase()) : MONTHS;
+  const peak = monthly.indexOf(Math.max(...monthly));
+  monthly.forEach((v, i) => {
+    const cx = L + band * (i + 0.5), yv = y(v), h = Math.max(y(0) - yv, 0), r = Math.min(4, h, bw / 2);
+    const hit = add('rect', { class: 'hit', x: cx - band / 2, y: T, width: band, height: H - T - B, tabindex: 0,
+      'aria-label': `${MONTHS_FULL[i]}: ${nf0.format(v)} kWh` });
+    // rounded data end, square at the baseline
+    add('path', { class: 'bar', d: `M${cx - bw / 2},${y(0)} v${-(h - r)} q0,${-r} ${r},${-r} h${bw - 2 * r} q${r},0 ${r},${r} v${h - r} z` });
+    add('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, names[i]);
+    if (i === peak) add('text', { class: 'peak', x: cx, y: yv - 6, 'text-anchor': 'middle' }, nf0.format(v));
+    const showTip = () => {
+      tip.replaceChildren(el('b', nf0.format(v) + ' kWh'), document.createTextNode(' ' + MONTHS_FULL[i]));
+      tip.style.display = 'block';
+      const half = tip.offsetWidth / 2, scale = chart.clientWidth / W;
+      tip.style.left = Math.min(Math.max(cx * scale, half), chart.clientWidth - half) + 'px';
+      tip.style.top = (yv * scale - 8) + 'px';
+      svg.classList.add('hovering');
+    };
+    const hideTip = () => { tip.style.display = 'none'; svg.classList.remove('hovering'); };
+    hit.addEventListener('pointerenter', showTip);
+    hit.addEventListener('pointerleave', hideTip);
+    hit.addEventListener('focus', showTip);
+    hit.addEventListener('blur', hideTip);
+  });
+  chart.append(svg);
+
+  const total = monthly.reduce((a, c) => a + c, 0);
+  fillTable($('monthTable'), ['Miesiąc', 'kWh', 'Udział w roku'], monthly.map((v, i) => ({
+    cells: [MONTHS_FULL[i], nf0.format(v), nf0.format(v / total * 100) + '%'],
+  })));
+}
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {   // redraw only when the width really changed (not when a phone hides its address bar)
+    if (lastMonthly && !$('result').hidden && Math.round($('chart').clientWidth) !== lastWidth) drawChart(lastMonthly);
+  }, 150);
+});
+
+// ---- events
+$('search').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const address = $('address').value.trim();
+  if (!address) return;
+  data = null;
+  view = 'selected';
+  query = { address };
+  pickedLabel = null;
+  $('result').hidden = true;
+  load(query);
+});
+$('slider').addEventListener('input', (e) => sliderText(Number(e.target.value)));
+$('slider').addEventListener('change', (e) => load({ ...query, panels: e.target.value }));
+$('gGo').addEventListener('click', () => {
+  const kwp = Number($('gKwp').value), tilt = Number($('gTilt').value);
+  if (!(kwp > 0) || !(tilt >= 0 && tilt <= 90)) return;
+  load({ ...query, kwp, tilt, azimuth: $('gAz').value });
+});
+
+fetch('/api/health').then((r) => r.json()).then((h) => {
+  if (!h.google_key) {
+    $('error').textContent = 'Na serwerze brakuje klucza Google Solar API (plik .env) – wyszukiwanie dachu nie zadziała.';
+    $('error').hidden = false;
+  }
+}).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# secrets: the Google Solar API key lives here
+.env
+
+# cache: Google Solar data (must not be kept longer than 30 days), geocoding, PVGIS
+data/
+
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+.pytest_cache/
+build/
+dist/
+*.egg-info
