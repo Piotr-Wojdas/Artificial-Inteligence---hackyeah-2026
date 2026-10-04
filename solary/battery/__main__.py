@@ -3,7 +3,7 @@
     python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10 --annual-kwh 4000
     python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tariff dynamic
     python -m solary.battery evaluate          # all strategies on the test year -> evaluation.json
-    python -m solary.battery train --steps 3000000   (needs: uv sync --group rl)
+    python -m solary.battery train --steps 2000000   (needs: uv sync --group rl)
 
 With an address the panels come from the roof analysis (python -m solary), so they are the ones
 our layout chose; without roof data (or with --lat/--lon) from --kwp, --tilt and --azimuth.
@@ -59,7 +59,8 @@ def main() -> int:
     e = sub.add_parser("evaluate", help="all strategies on the test year (writes evaluation.json)")
     e.add_argument("--no-mpc", action="store_true", help="skip MPC (the slowest, about a minute per house)")
     t = sub.add_parser("train", help="train the agent with PPO (needs: uv sync --group rl)")
-    t.add_argument("--steps", type=int, default=3_000_000)
+    t.add_argument("--steps", type=int, default=2_000_000, help="PPO steps after imitation (default 2,000,000)")
+    t.add_argument("--imitation-weeks", type=int, default=320, help="MPC weeks to imitate first (0 = PPO alone)")
     t.add_argument("--out", type=Path)
     t.add_argument("--envs", type=int, default=8)
     t.add_argument("--seed", type=int, default=0)
@@ -70,7 +71,8 @@ def main() -> int:
         if args.command == "train":
             from .policy import POLICY_PATH
             from .train import train
-            train(args.steps, args.out or POLICY_PATH, n_envs=args.envs, seed=args.seed)
+            train(args.steps, args.out or POLICY_PATH, n_envs=args.envs, seed=args.seed,
+                  imitation_weeks=args.imitation_weeks)
         elif args.command == "evaluate":
             from .evaluate import evaluate
             evaluate(mpc=not args.no_mpc)
@@ -112,7 +114,7 @@ def _plan(args) -> int:
     plan = res["plan"]
     if plan and plan["steps"]:
         now = plan["now"]
-        print(f"\nNow ({now['time'][11:16]}): {now['action_label']} (controller: {plan['controller']}); "
+        print(f"\nNow ({now['time'][11:16]}): {now['effect_label']} (the {plan['controller']} chose: {now['action_label']}); "
               f"prices published until {plan['prices_until']}")
         print(f"Plan to the end of tomorrow: {plan['cost_zl']:.2f} zł = bought {plan['buy_zl']:.2f} - sold "
               f"{plan['sell_zl']:.2f} + battery wear {plan['wear_zl']:.2f} (the usual inverter: {plan['rule_cost_zl']:.2f} zł)")
@@ -123,7 +125,7 @@ def _plan(args) -> int:
             price = f"{sum(rce) / len(rce):6.2f}" if rce else "     –"
             print(f"  {hour[0]['time'][5:16].replace('T', ' ')}  {price}"
                   f"  {sum(s['pv_kwh'] for s in hour):7.2f}  {sum(s['load_kwh'] for s in hour):7.2f}"
-                  f"  {hour[-1]['soc']:6.0%}   {hour[0]['action_label']}")
+                  f"  {hour[-1]['soc']:6.0%}   {hour[0]['effect_label']}")
     print(f"\n{res['attribution']}")
     return 0
 

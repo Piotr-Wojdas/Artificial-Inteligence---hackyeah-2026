@@ -5,7 +5,9 @@ Wpisujesz adres, a moduł:
 1. znajduje budynek (OpenStreetMap) i jego dach (Google Solar API),
 2. rozmieszcza na dachu panele dla wybranej mocy: według Google albo własnym algorytmem, który zostawia odstęp
    od krawędzi i omija kominy, i rysuje je na zdjęciu lotniczym,
-3. szacuje, ile prądu te panele wyprodukują w Polsce: rocznie i w każdym miesiącu.
+3. szacuje, ile prądu te panele wyprodukują w Polsce: rocznie i w każdym miesiącu,
+4. steruje domowym magazynem energii: agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, kiedy
+   ładować baterię, kiedy zasilać z niej dom, a kiedy sprzedawać prąd, patrząc na ceny RCE i prognozę pogody.
 
 W środku jest biblioteka w Pythonie, polecenie w terminalu, serwer HTTP dla frontendu i gotowa strona demo.
 Folder jest samodzielny: skopiuj jego zawartość do pustego repozytorium.
@@ -19,8 +21,9 @@ cp .env.example .env        # wpisz klucz: GOOGLE_MAPS_API_KEY=...
 uv sync                     # instaluje zależności (razem z pytest)
 uv run python -m solary "Mariacka 1, Katowice" --kwp 6     # wynik w terminalu + 3 obrazki w data/roof/
 uv run python -m solary "Mariacka 1, Katowice" --panels 15 --layout own   # panele rozmieszcza nasz algorytm
+uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10   # magazyn: rok + plan na dziś i jutro
 uv run python -m solary.api                                # strona demo: http://127.0.0.1:8000
-uv run pytest                                              # 160 testów, bez internetu
+uv run pytest                                              # 178 testów, bez internetu
 ```
 
 Klucz: w [Google Cloud Console](https://console.cloud.google.com/) włącz **Solar API** w projekcie z podpiętymi
@@ -45,6 +48,7 @@ Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
 | `solary/service.py` | `analyze()`: cała funkcja w jednym wywołaniu |
 | `solary/__main__.py` | polecenie `python -m solary` |
 | `solary/api.py` | serwer FastAPI + strona demo |
+| `solary/battery/` | magazyn energii: dane (ceny, pogoda), symulator, strategie, agent RL, plan na dziś i jutro |
 | `solary/env.py`, `solary/errors.py` | wczytywanie `.env`, klasa błędów |
 | `web/index.html` | strona demo (czysty HTML i JavaScript, bez budowania) |
 | `tests/` | testy bez dostępu do sieci |
@@ -109,6 +113,93 @@ mały, a wynik da się sprawdzić. Działa tylko tam, gdzie Google ma dane o dac
 | Mariacka 1, Katowice | 15 paneli, 6,0 kWp | 5 729 kWh/rok | 955 kWh | 921 kWh |
 | Świdnicka 10, Wrocław | 15 paneli, 6,0 kWp | 5 457 kWh/rok | 910 kWh | 879 kWh |
 | Rynek Wielki 1, Zamość | brak danych dachu, 5 kWp, 35° płd. | 5 267 kWh/rok | 1 053 kWh | to jest PVGIS |
+
+## Magazyn energii sterowany przez AI
+
+Dom ma panele (te z analizy dachu), baterię i umowę z ceną zależną od rynku. Co 15 minut sterownik wybiera jedną z
+ośmiu decyzji: autokonsumpcja, bez ruchu, ładuj tylko z nadwyżki PV, pokrywaj zużycie (a nadwyżkę sprzedaj),
+ładuj z sieci (pół albo pełna moc), sprzedawaj z baterii (pół albo pełna moc). Decyzję podejmuje **agent nauczony
+metodą uczenia ze wzmocnieniem** (sieć neuronowa 106 → 128 → 128 → 8).
+
+```bash
+uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10 --annual-kwh 4000 --tariff g11
+uv run python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tilt 35 --azimuth 180 --tariff dynamic
+uv run python -m solary.battery evaluate        # wszystkie strategie na roku testowym -> solary/battery/evaluation.json
+uv sync --group rl && uv run python -m solary.battery train   # nauka agenta od nowa (torch, ok. 15 min na 4 rdzeniach)
+```
+
+Wynik `plan`: rachunek za rok testowy bez magazynu, ze zwykłym falownikiem, z agentem i w optimum oraz plan od teraz
+do końca jutra (co robi bateria w każdym kwadransie). Na stronie demo to sekcja „Magazyn energii” pod wynikiem dachu.
+
+### Skąd wiemy, kiedy prąd jest drogi
+
+- **Ceny.** PSE publikuje RCE (rynkową cenę energii) na każdy kwadrans następnego dnia, zwykle około 14:00
+  (`api.raporty.pse.pl/api/rce-pln`, bez klucza). Do 14:00 znamy ceny do północy, potem do końca jutra. Dalej agent
+  zakłada ceny jak dzień wcześniej. Typowy dzień: najtaniej w południe (słońce zalewa sieć, bywa poniżej zera),
+  najdrożej około 19:00.
+- **Pogoda.** Historia: NASA POWER (godzinowe nasłonecznienie, światło rozproszone, temperatura). Prognoza:
+  Open-Meteo. Nasłonecznienie przeliczamy na każdą połać dachu (model izotropowy) i na moc paneli (temperatura,
+  straty 14%). Z analizą dachu produkcję skalujemy do rocznego wyniku Google, który zna lokalne cienie.
+- **Zużycie.** Typowy dom bez ogrzewania elektrycznego (profil G11: szczyt rano i wieczorem, więcej zimą),
+  przeskalowany do podanego rocznego zużycia, z losowymi wahaniami (czajnik, piekarnik, pralka).
+
+### Pieniądze: net-billing
+
+Prąd z sieci kosztuje część „energia” plus dystrybucję. Prąd oddany do sieci jest wart RCE z danego kwadransu
+(0 zł przy ujemnej cenie) i trafia do depozytu prosumenckiego, który pokrywa tylko część „energia” późniejszych
+rachunków. Niewykorzystany depozyt po 12 miesiącach wraca najwyżej w 30%. Dlatego wartość jednej sprzedanej kWh
+zależy od całego roku domu: póki depozyt się zużywa, jest warta pełne RCE; gdy depozytu jest dużo więcej niż
+kupowanej energii, tylko 30% RCE (a kupowana kWh kosztuje wtedy samą dystrybucję). Parametr `theta` (0–1) ustawia
+dom między tymi skrajnościami; dobieramy go tak, żeby roczny rachunek był najniższy. Rachunek roczny liczymy dokładnie
+według tych zasad. Domyślne ceny 2026 r. (G11: energia 0,62 zł + dystrybucja 0,38 zł za kWh brutto; dynamiczna:
+(RCE + 0,05 zł) × 1,23 + 0,37 zł) i koszt zużycia baterii (0,10 zł za kWh z niej pobraną) to założenia
+w `solary/battery/model.py`: porównaj je ze swoim rachunkiem.
+
+### Strategie, z którymi porównujemy agenta
+
+| Strategia | Co wie | Opis |
+|---|---|---|
+| bez magazynu | – | rachunek z samymi panelami |
+| zwykły falownik | bieżący kwadrans | ładuje z nadwyżki, oddaje, gdy dom potrzebuje: tak działa większość falowników |
+| agent RL | to samo co MPC | sieć neuronowa wybiera jedną z 8 decyzji; liczy się w ułamku sekundy |
+| MPC | ceny opublikowane, prognoza PV i zużycia | co godzinę układa najtańszy plan na 36 h (programowanie liniowe) |
+| optimum | całą przyszłość dokładnie | najlepszy możliwy wynik; żaden sterownik go nie osiągnie, służy za miarę |
+
+### Jak uczy się agent
+
+1. **Symulator.** Tydzień prawdziwych cen RCE i pogody z okresu 1.07.2024–30.06.2025 w jednym z czterech miast
+   (Katowice, Warszawa, Gdańsk, Wrocław) i losowy dom: 3–12 kWp w 7 orientacjach, bateria 5–20 kWh, zużycie
+   2000–7000 kWh, G11 albo taryfa dynamiczna, różne ceny i `theta`. Agent widzi to, co prawdziwy sterownik:
+   naładowanie baterii, porę dnia i roku, ceny na 24 h (opublikowane albo jak wczoraj), prognozę PV z błędem rosnącym
+   z wyprzedzeniem (20–40% na jutro, jak prognoza dla jednego dachu) i oczekiwane zużycie.
+2. **Nagroda.** Złotówki zaoszczędzone w danym kwadransie względem tego samego domu bez baterii.
+3. **Imitacja.** Sieć najpierw uczy się decyzji MPC z 320 losowych tygodni (215 tys. decyzji).
+4. **PPO** (stable-baselines3): agent sam prowadzi tydzień za tygodniem i poprawia to, czego się nauczył. Co
+   200 tys. kroków dostaje ocenę na stałych tygodniach walidacyjnych; zapisujemy najlepszą wersję.
+5. **Eksport.** Wagi sieci i normalizacja wejść trafiają do `solary/battery/policy.npz` (120 kB). Aplikacja liczy
+   decyzje w czystym numpy, bez torcha.
+6. **Test.** `evaluate` sprawdza wszystkie strategie na roku 1.07.2025–30.06.2026, którego agent nie widział.
+
+### Wyniki na roku testowym
+
+Rok 2025-07-01 – 2026-06-30 w Katowicach: prawdziwe ceny RCE i pogoda, typowe zużycie. Agent nie widział tego roku podczas nauki. Rachunek roczny według zasad net-billingu; w nawiasie, jaką część możliwej oszczędności (optimum) daje każda strategia. Pełny raport: `solary/battery/evaluation.json`.
+
+| Dom | Bez magazynu | Zwykły falownik | Agent RL | MPC | Optimum |
+|---|---|---|---|---|---|
+| 6 kWp na południe, bateria 10 kWh, G11, 4 000 kWh/rok | 1 169 zł | 403 zł (76%) | 184 zł (97%) | 171 zł (98%) | 153 zł |
+| 6 kWp na południe, bateria 10 kWh, taryfa dynamiczna, 4 000 kWh/rok | 1 536 zł | 472 zł (77%) | 184 zł (98%) | 171 zł (99%) | 153 zł |
+| 8 kWp wschód-zachód, bateria 5 kWh, G11, 5 000 kWh/rok | 1 609 zł | 1 054 zł (69%) | 826 zł (97%) | 822 zł (98%) | 802 zł |
+| 4 kWp na południe, bateria 15 kWh, taryfa dynamiczna, 6 000 kWh/rok | 4 062 zł | 2 709 zł (62%) | 2 443 zł (75%) | 1 989 zł (96%) | 1 893 zł |
+
+Agent zbliża się do MPC, choć decyduje w ułamku sekundy, a MPC rozwiązuje co godzinę program liniowy. Słabiej wypada w domu z dużym zużyciem i taryfą dynamiczną, gdzie opłaca się ładować baterię z sieci w tanich godzinach: w przykładach od MPC takich decyzji było mało. Agent uczony bez imitacji (samo PPO, 3 mln kroków) osiągał 93%, 95%, 81% i 61% optimum.
+
+### Ograniczenia magazynu
+
+- Zużycie domu jest typowe, nie Twoje: odczyty z licznika dałyby dokładniejszy wynik.
+- Błąd prognozy PV w nauce i ocenie jest symulowany; prawdziwe archiwalne prognozy dałyby uczciwszy test.
+- Depozyt rozliczamy w skali roku, a nie miesiąc po miesiącu; nie modelujemy limitu mocy oddawanej do sieci ani
+  opłat stałych.
+- Agent jest oceniany w symulacji. Do sterowania prawdziwą baterią trzeba połączyć go z falownikiem (np. Modbus).
 
 ## Założenia
 
@@ -196,6 +287,7 @@ uv run python -m solary.api --host 127.0.0.1 --port 8000
 | `GET /api/roof?lat=…&lon=…&panels=15` | to samo dla współrzędnych i liczby paneli |
 | `GET /api/roof?address=…&layout=own&margin=0.2` | panele rozmieszcza nasz algorytm |
 | `GET /api/roof/image/{nazwa}` | obrazek PNG z pola `images` |
+| `GET /api/battery?lat=…&lon=…&planes=6:35:180&battery_kwh=10&annual_kwh=4000&tariff=g11&soc=0.5` | magazyn: rachunek za rok i plan od teraz do końca jutra |
 
 Parametry `/api/roof`: `address` albo `lat` + `lon`; `kwp` albo `panels`; `images=false` wyłącza obrazki;
 `tilt` i `azimuth` działają tylko w szacunku bez danych dachu; `layout` (`google` albo `own`) wybiera, kto
@@ -267,7 +359,8 @@ wystarcza.
 - **Cienie.** Są wliczone w sumę roczną, ale podział na miesiące ich nie zna.
 - **To szacunek.** Wynik opiera się na danych wieloletnich. Pojedynczy rok może się różnić o kilka procent,
   a strat 14% nikt nie zmierzył dla konkretnej instalacji.
-- **Brak finansów.** Moduł liczy energię, nie ceny, zwrot ani rozliczenia z siecią.
+- **Finanse tylko dla magazynu.** Analiza dachu liczy energię; rachunki (net-billing) liczy tylko część o magazynie.
+  Nie ma cen instalacji ani okresu zwrotu.
 
 ## Źródła danych i ich warunki
 
@@ -279,15 +372,20 @@ wystarcza.
   i wymaga nagłówka User-Agent z nazwą aplikacji: ustaw `SOLARY_USER_AGENT` w `.env`. Przy wynikach trzeba
   podać „© autorzy OpenStreetMap”. Przy większym ruchu postaw własny serwer albo użyj płatnego geokodera.
 - **PVGIS** (Komisja Europejska, JRC). Bezpłatny, bez klucza. Wyniki są cache'owane w `data/pvgis_cache.json`.
+- **PSE** (ceny RCE), **NASA POWER** (historia pogody) i **Open-Meteo** (prognoza; darmowy dostęp do użytku
+  niekomercyjnego, z podaniem źródła). Bez kluczy. Cache w `data/battery/`.
 
 ## Testy
 
-`uv run pytest` uruchamia 160 testów. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
+`uv run pytest` uruchamia 178 testów. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
 a rysowanie obrazków działa na małych, sztucznych plikach GeoTIFF. Własny układ paneli jest sprawdzany na sztucznych
 dachach z `tests/roofs.py` (dwuspadowy z kominem, kopertowy, płaski z attyką i klimatyzatorem, dwa płaskie na różnych
 wysokościach, mansardowy): odstęp od krawędzi i przeszkód, brak nakładania się paneli i paneli nad uskokiem,
 odporność na szum mapy wysokości. Sprawdzają też wybór paneli i zaokrąglanie mocy,
 przeliczenia produkcji, zamianę kierunków między Google i PVGIS, geometrię paneli, cache i jego wygasanie,
-to, że klucz nie trafia do komunikatów błędów, oraz API razem z ochroną ścieżek do obrazków.
+to, że klucz nie trafia do komunikatów błędów, oraz API razem z ochroną ścieżek do obrazków. Magazyn energii
+(`tests/test_battery.py`) jest sprawdzany na sztucznych dniach: fizyka baterii, taryfy i rozliczenie depozytu, to,
+co sterownik wie o cenach przed i po 14:00, kolejność strategii (optimum nigdy gorsze od reguły), dołączony agent
+i plan na dziś. Test środowiska do nauki wymaga grupy `rl`.
 
 Test na żywych danych to samo polecenie z „Szybkiego startu”.

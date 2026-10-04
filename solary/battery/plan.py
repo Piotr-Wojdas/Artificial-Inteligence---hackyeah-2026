@@ -29,6 +29,19 @@ ACTION_LABELS = {
 }
 
 
+def effect_label(flows: dict, pv: float, load: float) -> str:
+    """What actually happens in a quarter (the chosen option may have no effect, e.g. selling
+    from an empty battery)."""
+    c, d, imp, exp = flows["charge"], flows["discharge"], flows["import"], flows["export"]
+    if c > 1e-3:
+        return "ładuje z sieci" if imp > 1e-3 and c > max(pv - load, 0.0) + 1e-3 else "ładuje z nadwyżki PV"
+    if d > 1e-3:
+        return "sprzedaje prąd z baterii" if exp > 1e-3 else "zasila dom z baterii"
+    if exp > 1e-3:
+        return "sprzedaje nadwyżkę PV"
+    return "dom bierze prąd z sieci" if imp > 1e-3 else "bez ruchu"
+
+
 def yearly(lat: float, lon: float, planes, annual_kwh: float, battery: Battery, tariff: Tariff,
            pv_kwh_year: float | None, policy: Policy | None, cfg: Config = CONFIG) -> tuple[dict, Tariff]:
     """Bills over the test year without a battery, with the usual rule, with the agent and at the
@@ -79,6 +92,7 @@ def daily_plan(lat: float, lon: float, planes, annual_kwh: float, battery: Batte
                       "buy_zl_kwh": round(float(sc.buy[t]), 4), "sell_zl_kwh": round(float(sc.sell[t]), 4),
                       "pv_kwh": round(float(sc.pv[t]), 3), "load_kwh": round(float(sc.load[t]), 3),
                       "action": ACTIONS[action], "action_label": ACTION_LABELS[ACTIONS[action]],
+                      "effect_label": effect_label(flows, float(sc.pv[t]), float(sc.load[t])),
                       "charge_kwh": round(flows["charge"], 3), "discharge_kwh": round(flows["discharge"], 3),
                       "import_kwh": round(flows["import"], 3), "export_kwh": round(flows["export"], 3),
                       "soc": round(soc / battery.capacity_kwh, 3)})

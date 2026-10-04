@@ -1,0 +1,398 @@
+{
+ "test_period": [
+  "2025-07-01",
+  "2026-06-30"
+ ],
+ "location": "Katowice",
+ "policy": {
+  "seed": 1,
+  "train": [
+   "2024-07-01",
+   "2025-06-30"
+  ],
+  "locations": [
+   "Katowice",
+   "Warszawa",
+   "Gdańsk",
+   "Wrocław"
+  ],
+  "imitation_weeks": 320,
+  "steps": 1200000,
+  "validation_zl_per_week": 26.7,
+  "trained_at": "2026-10-04 00:01",
+  "actions": [
+   "self_consumption",
+   "idle",
+   "charge_surplus",
+   "cover_deficit",
+   "charge_half",
+   "charge_full",
+   "discharge_half",
+   "discharge_full"
+  ],
+  "obs_size": 106
+ },
+ "houses": [
+  {
+   "name": "Dom 6 kWp na południe, magazyn 10 kWh, G11",
+   "annual_kwh": 4000,
+   "planes": [
+    [
+     6.0,
+     35,
+     180
+    ]
+   ],
+   "battery": {
+    "capacity_kwh": 10,
+    "power_kw": 5,
+    "efficiency": 0.95,
+    "soc_min": 0.1,
+    "soc_max": 1.0,
+    "wear_zl_per_kwh": 0.1
+   },
+   "tariff": {
+    "kind": "g11",
+    "g11_energy_zl_kwh": 0.62,
+    "distribution_zl_kwh": 0.38,
+    "margin_zl_kwh": 0.05,
+    "vat": 0.23,
+    "sell_factor": 1.0,
+    "refund": 0.3,
+    "theta": 0.0
+   },
+   "theta": 1.0,
+   "theta_bills": {
+    "0.0": 161.6,
+    "0.5": 159.0,
+    "1.0": 153.3
+   },
+   "pv_kwh": 6339,
+   "load_kwh": 3945,
+   "rows": [
+    {
+     "strategy": "no_battery",
+     "bill_zl": 1169.2,
+     "savings_zl": 0.0,
+     "share_of_optimum": 0.0,
+     "import_kwh": 2342,
+     "export_kwh": 4735,
+     "battery_out_kwh": 0,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "rule",
+     "bill_zl": 402.7,
+     "savings_zl": 766.6,
+     "share_of_optimum": 0.755,
+     "import_kwh": 778,
+     "export_kwh": 2996,
+     "battery_out_kwh": 1563,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "agent",
+     "bill_zl": 183.9,
+     "savings_zl": 985.4,
+     "share_of_optimum": 0.97,
+     "import_kwh": 973,
+     "export_kwh": 3147,
+     "battery_out_kwh": 2036,
+     "lost_deposit_zl": 305.6
+    },
+    {
+     "strategy": "mpc",
+     "bill_zl": 171.0,
+     "savings_zl": 998.2,
+     "share_of_optimum": 0.983,
+     "import_kwh": 853,
+     "export_kwh": 3022,
+     "battery_out_kwh": 2074,
+     "lost_deposit_zl": 312.4
+    },
+    {
+     "strategy": "optimum",
+     "bill_zl": 153.3,
+     "savings_zl": 1015.9,
+     "share_of_optimum": 1.0,
+     "import_kwh": 798,
+     "export_kwh": 2961,
+     "battery_out_kwh": 2127,
+     "lost_deposit_zl": 351.3
+    }
+   ]
+  },
+  {
+   "name": "Dom 6 kWp na południe, magazyn 10 kWh, taryfa dynamiczna",
+   "annual_kwh": 4000,
+   "planes": [
+    [
+     6.0,
+     35,
+     180
+    ]
+   ],
+   "battery": {
+    "capacity_kwh": 10,
+    "power_kw": 5,
+    "efficiency": 0.95,
+    "soc_min": 0.1,
+    "soc_max": 1.0,
+    "wear_zl_per_kwh": 0.1
+   },
+   "tariff": {
+    "kind": "dynamic",
+    "g11_energy_zl_kwh": 0.62,
+    "distribution_zl_kwh": 0.38,
+    "margin_zl_kwh": 0.05,
+    "vat": 0.23,
+    "sell_factor": 1.0,
+    "refund": 0.3,
+    "theta": 0.0
+   },
+   "theta": 1.0,
+   "theta_bills": {
+    "0.0": 195.4,
+    "0.5": 167.7,
+    "1.0": 153.3
+   },
+   "pv_kwh": 6339,
+   "load_kwh": 3945,
+   "rows": [
+    {
+     "strategy": "no_battery",
+     "bill_zl": 1536.2,
+     "savings_zl": 0.0,
+     "share_of_optimum": 0.0,
+     "import_kwh": 2342,
+     "export_kwh": 4735,
+     "battery_out_kwh": 0,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "rule",
+     "bill_zl": 472.5,
+     "savings_zl": 1063.8,
+     "share_of_optimum": 0.769,
+     "import_kwh": 778,
+     "export_kwh": 2996,
+     "battery_out_kwh": 1563,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "agent",
+     "bill_zl": 183.9,
+     "savings_zl": 1352.4,
+     "share_of_optimum": 0.978,
+     "import_kwh": 973,
+     "export_kwh": 3147,
+     "battery_out_kwh": 2036,
+     "lost_deposit_zl": 200.6
+    },
+    {
+     "strategy": "mpc",
+     "bill_zl": 171.0,
+     "savings_zl": 1365.2,
+     "share_of_optimum": 0.987,
+     "import_kwh": 853,
+     "export_kwh": 3022,
+     "battery_out_kwh": 2074,
+     "lost_deposit_zl": 223.1
+    },
+    {
+     "strategy": "optimum",
+     "bill_zl": 153.3,
+     "savings_zl": 1382.9,
+     "share_of_optimum": 1.0,
+     "import_kwh": 798,
+     "export_kwh": 2961,
+     "battery_out_kwh": 2127,
+     "lost_deposit_zl": 262.5
+    }
+   ]
+  },
+  {
+   "name": "Dom 8 kWp wschód-zachód, magazyn 5 kWh, G11",
+   "annual_kwh": 5000,
+   "planes": [
+    [
+     4.0,
+     30,
+     90
+    ],
+    [
+     4.0,
+     30,
+     270
+    ]
+   ],
+   "battery": {
+    "capacity_kwh": 5,
+    "power_kw": 3,
+    "efficiency": 0.95,
+    "soc_min": 0.1,
+    "soc_max": 1.0,
+    "wear_zl_per_kwh": 0.1
+   },
+   "tariff": {
+    "kind": "g11",
+    "g11_energy_zl_kwh": 0.62,
+    "distribution_zl_kwh": 0.38,
+    "margin_zl_kwh": 0.05,
+    "vat": 0.23,
+    "sell_factor": 1.0,
+    "refund": 0.3,
+    "theta": 0.0
+   },
+   "theta": 1.0,
+   "theta_bills": {
+    "0.0": 802.3,
+    "0.5": 801.9,
+    "1.0": 801.7
+   },
+   "pv_kwh": 7092,
+   "load_kwh": 4936,
+   "rows": [
+    {
+     "strategy": "no_battery",
+     "bill_zl": 1609.3,
+     "savings_zl": 0.0,
+     "share_of_optimum": 0.0,
+     "import_kwh": 2890,
+     "export_kwh": 5046,
+     "battery_out_kwh": 0,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "rule",
+     "bill_zl": 1054.2,
+     "savings_zl": 555.2,
+     "share_of_optimum": 0.687,
+     "import_kwh": 1660,
+     "export_kwh": 3681,
+     "battery_out_kwh": 1230,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "agent",
+     "bill_zl": 826.3,
+     "savings_zl": 783.0,
+     "share_of_optimum": 0.969,
+     "import_kwh": 1759,
+     "export_kwh": 3782,
+     "battery_out_kwh": 1231,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "mpc",
+     "bill_zl": 821.7,
+     "savings_zl": 787.7,
+     "share_of_optimum": 0.975,
+     "import_kwh": 1708,
+     "export_kwh": 3731,
+     "battery_out_kwh": 1218,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "optimum",
+     "bill_zl": 801.7,
+     "savings_zl": 807.7,
+     "share_of_optimum": 1.0,
+     "import_kwh": 1674,
+     "export_kwh": 3694,
+     "battery_out_kwh": 1246,
+     "lost_deposit_zl": 0.0
+    }
+   ]
+  },
+  {
+   "name": "Dom 4 kWp na południe, magazyn 15 kWh, taryfa dynamiczna",
+   "annual_kwh": 6000,
+   "planes": [
+    [
+     4.0,
+     35,
+     180
+    ]
+   ],
+   "battery": {
+    "capacity_kwh": 15,
+    "power_kw": 7.5,
+    "efficiency": 0.95,
+    "soc_min": 0.1,
+    "soc_max": 1.0,
+    "wear_zl_per_kwh": 0.1
+   },
+   "tariff": {
+    "kind": "dynamic",
+    "g11_energy_zl_kwh": 0.62,
+    "distribution_zl_kwh": 0.38,
+    "margin_zl_kwh": 0.05,
+    "vat": 0.23,
+    "sell_factor": 1.0,
+    "refund": 0.3,
+    "theta": 0.0
+   },
+   "theta": 0.0,
+   "theta_bills": {
+    "0.0": 1892.8,
+    "0.5": 1941.6,
+    "1.0": 2455.0
+   },
+   "pv_kwh": 4226,
+   "load_kwh": 5927,
+   "rows": [
+    {
+     "strategy": "no_battery",
+     "bill_zl": 4062.5,
+     "savings_zl": 0.0,
+     "share_of_optimum": 0.0,
+     "import_kwh": 3963,
+     "export_kwh": 2262,
+     "battery_out_kwh": 0,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "rule",
+     "bill_zl": 2709.2,
+     "savings_zl": 1353.2,
+     "share_of_optimum": 0.624,
+     "import_kwh": 2339,
+     "export_kwh": 453,
+     "battery_out_kwh": 1623,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "agent",
+     "bill_zl": 2442.8,
+     "savings_zl": 1619.7,
+     "share_of_optimum": 0.746,
+     "import_kwh": 2872,
+     "export_kwh": 958,
+     "battery_out_kwh": 1971,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "mpc",
+     "bill_zl": 1989.3,
+     "savings_zl": 2073.1,
+     "share_of_optimum": 0.955,
+     "import_kwh": 3158,
+     "export_kwh": 1117,
+     "battery_out_kwh": 3146,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "optimum",
+     "bill_zl": 1892.8,
+     "savings_zl": 2169.7,
+     "share_of_optimum": 1.0,
+     "import_kwh": 3033,
+     "export_kwh": 984,
+     "battery_out_kwh": 3228,
+     "lost_deposit_zl": 0.0
+    }
+   ]
+  }
+ ]
+}
