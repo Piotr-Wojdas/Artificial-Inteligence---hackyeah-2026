@@ -9,6 +9,7 @@ import dataclasses
 
 from .config import CONFIG, Config
 from .errors import SolaryError
+from .economics import estimate_economics
 from .geocode import geocode
 from .layout import LayoutUnavailable, layout_key, with_own_layout
 from .panels import (distance_to_building_m, energy_scale, google_panel_watts, max_kwp, max_panels, ordered_panels,
@@ -25,7 +26,9 @@ ATTRIBUTION_GENERIC = "Address search © OpenStreetMap contributors; production 
 
 def analyze(address: str | None = None, lat: float | None = None, lon: float | None = None,
             kwp: float | None = None, panels: int | None = None, images: bool = True,
-            tilt: float | None = None, azimuth: float | None = None, cfg: Config = CONFIG) -> dict:
+            tilt: float | None = None, azimuth: float | None = None,
+            retail_price: float | None = None, feed_in_price: float | None = None,
+            self_consumption: float | None = None, cfg: Config = CONFIG) -> dict:
     """Roof of the building at `address` (or at lat/lon) with a layout of `panels` panels (or the
     whole panels closest to `kwp`; default cfg.default_kwp) and their production.
 
@@ -50,8 +53,8 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
         raise SolaryError("kwp must be greater than 0")
     if panels is not None and panels < 1:
         raise SolaryError("panels must be at least 1")
-    if cfg.layout not in ("google", "own"):
-        raise SolaryError(f"unknown layout {cfg.layout!r}: use 'google' or 'own'")
+    if cfg.layout not in ("google", "own", "pro"):
+        raise SolaryError(f"unknown layout {cfg.layout!r}: use 'google', 'own' or 'pro'")
 
     warnings = [] if house_level else ["street_only"]
     base = {"query": {"address": address, "lat": lat, "lon": lon}, "address_label": label,
@@ -61,15 +64,20 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
         google = bi = building_insights(lat, lon, cfg)
     except RoofNotFound:
         return base | _generic(lat, lon, kwp, tilt, azimuth, "no_roof_data", warnings, cfg)
-    if cfg.layout == "own":
+    if cfg.layout in ("own", "pro"):
         try:
             bi = _own_layout(google, images, cfg)
         except (SolarApiError, LayoutUnavailable):   # no height map here: Google's own layout instead
             warnings.append("layout_fallback")
             cfg = dataclasses.replace(cfg, layout="google")
             base["assumptions"] = cfg.public()
+    ret_price = retail_price if retail_price is not None else 1.10
+    feed_price = feed_in_price if feed_in_price is not None else 0.40
+    self_cons = self_consumption if self_consumption is not None else 25.0
+
     if not max_panels(bi):
-        return base | _generic(lat, lon, kwp, tilt, azimuth, "no_panels_fit", warnings, cfg)
+        return base | _generic(lat, lon, kwp, tilt, azimuth, "no_panels_fit", warnings, cfg,
+                               ret_price, feed_price, self_cons)
 
     n = min(panels, max_panels(bi)) if panels is not None else panels_for_kwp(bi, kwp or cfg.default_kwp, cfg)
     selected = estimate_roof(bi, n, cfg)
@@ -85,6 +93,12 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
             files = _render_all(bi, lat, lon, n, cfg)
         except SolarApiError:
             warnings.append("images_unavailable")
+
+    selected["economics"] = estimate_economics(selected["kwp"], selected["kwh_year"],
+                                               ret_price, feed_price, self_cons)
+    sizes = sizes_table(bi, cfg)
+    for sz in sizes:
+        sz["economics"] = estimate_economics(sz["kwp"], sz["kwh_year"], ret_price, feed_price, self_cons)
 
     sp, centre, date = bi["solarPotential"], bi["center"], bi.get("imageryDate", {})
     return base | {
@@ -102,7 +116,7 @@ def analyze(address: str | None = None, lat: float | None = None, lon: float | N
                   "width_m": float(sp.get("panelWidthMeters", PANEL_W_M))},
         "segments": segments_table(bi),
         "selected": selected,
-        "sizes": sizes_table(bi, cfg),
+        "sizes": sizes,
         "images": files,
         "layout": _layout_info(google, n, cfg),
     }
@@ -119,16 +133,17 @@ def _own_layout(bi: dict, images: bool, cfg: Config) -> dict:
 def _layout_info(google: dict, n: int, cfg: Config) -> dict:
     """Which algorithm placed the panels and, for ours, what Google's layout gives for the same
     number of panels: the cross-check shown next to the result."""
-    if cfg.layout != "own":
+    if cfg.layout not in ("own", "pro"):
         return {"algorithm": "google"}
     theirs = ordered_panels(google, cfg)
     kwh = sum(float(p.get("yearlyEnergyDcKwh", 0.0)) for p in theirs[:n]) * energy_scale(google, cfg) * cfg.ac_factor
-    return {"algorithm": "own", "margin_m": cfg.layout_margin_m, "gap_m": cfg.layout_gap_m,
+    return {"algorithm": cfg.layout, "margin_m": cfg.layout_margin_m, "gap_m": cfg.layout_gap_m,
             "google_max_panels": len(theirs), "google_kwh_year": kwh if 0 < n <= len(theirs) else None}
 
 
 def _generic(lat: float, lon: float, kwp: float | None, tilt: float | None, azimuth: float | None,
-             reason: str, warnings: list[str], cfg: Config) -> dict:
+             reason: str, warnings: list[str], cfg: Config,
+             ret_price: float = 1.10, feed_price: float = 0.40, self_cons: float = 25.0) -> dict:
     tilt = cfg.generic_tilt_deg if tilt is None else tilt
     azimuth = cfg.generic_azimuth_deg if azimuth is None else azimuth
     if not 0 <= tilt <= 90:
@@ -137,7 +152,10 @@ def _generic(lat: float, lon: float, kwp: float | None, tilt: float | None, azim
     generic = estimate_generic(lat, lon, kwp, tilt, azimuth, cfg)
     if generic["monthly_source"] != "pvgis":
         warnings = warnings + ["monthly_fallback"]
-    sizes = [{"kwp": k, "kwh_year": generic["kwh_per_kwp"] * k, "kwh_per_kwp": generic["kwh_per_kwp"]}
+    generic["economics"] = estimate_economics(generic["kwp"], generic["kwh_year"],
+                                              ret_price, feed_price, self_cons)
+    sizes = [{"kwp": k, "kwh_year": generic["kwh_per_kwp"] * k, "kwh_per_kwp": generic["kwh_per_kwp"],
+              "economics": estimate_economics(k, generic["kwh_per_kwp"] * k, ret_price, feed_price, self_cons)}
              for k in cfg.sizes_kwp]
     return {"roof_available": False, "reason": reason, "warnings": warnings, "generic": generic,
             "sizes": sizes, "images": {}, "attribution": ATTRIBUTION_GENERIC}
@@ -149,7 +167,7 @@ def _render_all(bi: dict, lat: float, lon: float, n: int, cfg: Config) -> dict[s
     building = tag(centre["latitude"], centre["longitude"])
     panels = ordered_panels(bi, cfg)
     # our layout depends on its settings, so their id is part of the file names
-    own = f"own-{layout_key(cfg)}" if cfg.layout == "own" else ""
+    own = f"{cfg.layout}-{layout_key(cfg)}" if cfg.layout in ("own", "pro") else ""
     order = own + ("-yield" if cfg.panel_order == "yield" else "") if own else cfg.panel_order
     paths = {
         "confirm": render(bi, layers, cfg.roof_dir / f"confirm_{building}_{tag(lat, lon)}.png", [],

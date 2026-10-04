@@ -3,187 +3,1467 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solary – panele na Twoim dachu</title>
-<link rel="icon" href="data:,">
+<title>Solary – inteligentne rozmieszczenie paneli fotowoltaicznych</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23eab308'><circle cx='12' cy='12' r='5'/><path stroke='%23eab308' stroke-width='2' stroke-linecap='round' d='M12 1v3m0 16v3M1 12h3m16 0h3m-3.3-7.7-2.1 2.1m-9.2 9.2-2.1 2.1m0-13.4 2.1 2.1m9.2 9.2 2.1 2.1'/></svg>">
 <style>
   :root {
-    color-scheme: light;
-    --bg: #f3f8f4; --surface: #ffffff; --border: #d6e5dc; --soft: #eaf5ee;
-    --text: #17251e; --text-2: #4e6157; --text-3: #5f7166;
-    --accent: #217346; --accent-ink: #ffffff; --series-1: #217346; --series-1-hover: #2f8d59;
-    --grid: #e3ece6; --warn-bg: #fff7e8; --warn-border: #f1dfc0; --warn-text: #7a4b0c;
-    --err-bg: #fdecec; --err-border: #f5b5b5; --err-text: #8f1d1d;
+    --bg: #ffffff;
+    --bg-subtle: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --border-subtle: #edf2f7;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-faint: #94a3b8;
+    
+    /* Solar Yellow & Amber Palette */
+    --yellow-50: #fefce8;
+    --yellow-100: #fef9c3;
+    --yellow-200: #fef08a;
+    --yellow-300: #fde047;
+    --yellow-400: #facc15;
+    --yellow-500: #eab308;
+    --yellow-600: #ca8a04;
+    --yellow-700: #a16207;
+    --yellow-800: #854d0e;
+    --yellow-900: #713f12;
+    
+    --primary: var(--yellow-400);
+    --primary-hover: var(--yellow-300);
+    --primary-ink: #0f172a;
+    
+    --accent-bar: var(--yellow-400);
+    --accent-bar-peak: var(--yellow-500);
+    
+    --badge-bg: var(--yellow-100);
+    --badge-text: var(--yellow-900);
+    --badge-border: var(--yellow-300);
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
-      --bg: #101713; --surface: #18211c; --border: #2c3a32; --soft: #1f2c25;
-      --text: #f1f7f2; --text-2: #c2d1c8; --text-3: #a3b5aa;
-      --accent: #3fa56d; --accent-ink: #0c1510; --series-1: #3fa56d; --series-1-hover: #5cbd87;
-      --grid: #26332b; --warn-bg: #2e2717; --warn-border: #5a4a22; --warn-text: #f0d59b;
-      --err-bg: #331b1b; --err-border: #6b2e2e; --err-text: #f6c1c1;
-    }
-  }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
-  h1 { font-size: 26px; margin: 0; line-height: 1.2; }
-  h2 { font-size: 16px; margin: 0; }
-  p { margin: 0; }
-  .sub { color: var(--text-2); }
-  .small { font-size: 13px; color: var(--text-3); }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  form.search { display: flex; gap: 8px; flex-wrap: wrap; }
-  input[type=text], input[type=number], select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
-  form.search input[type=text] { flex: 1 1 260px; }
-  button { font: inherit; cursor: pointer; }
-  .btn { background: var(--accent); color: var(--accent-ink); border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; }
-  .btn:disabled { opacity: .6; cursor: progress; }
-  .chip { background: var(--soft); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
-  .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .notice { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
-  .notice.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
-  .notice.err { background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); }
-  .grid2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (max-width: 800px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
-  .roof-img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: var(--soft); border-radius: 12px; display: block; }
-  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .tile { background: var(--soft); border-radius: 12px; padding: 10px 12px; }
-  .tile .label { font-size: 13px; color: var(--text-2); }
-  .tile .value { font-size: 22px; font-weight: 650; }
-  .hero .value { font-size: 48px; font-weight: 650; line-height: 1.1; }
-  .hero .label { color: var(--text-2); }
-  input[type=range] { width: 100%; accent-color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
-  th { color: var(--text-2); font-weight: 600; }
-  th:first-child, td:first-child { text-align: left; }
-  tr.current td { background: var(--soft); font-weight: 650; }
-  tr.pick { cursor: pointer; }
-  tr.pick:hover td { background: var(--soft); }
-  .table-scroll { overflow-x: auto; }
-  .chart { position: relative; }
-  .chart svg { width: 100%; height: auto; display: block; }
-  .chart .bar { fill: var(--series-1); }
-  .chart .hit { fill: transparent; outline: none; }
-  .chart .hit:hover + .bar, .chart .hit:focus-visible + .bar { fill: var(--series-1-hover); }
-  .chart .grid { stroke: var(--grid); stroke-width: 1; }
-  .chart text { fill: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .chart text.peak { fill: var(--text); font-weight: 650; }
-  .chart svg.hovering text.peak { visibility: hidden; }  /* the tooltip takes its place */
-  .tip { position: absolute; pointer-events: none; background: var(--text); color: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 13px; white-space: nowrap; transform: translate(-50%, -100%); display: none; }
-  .tip b { font-size: 15px; }
-  details summary { cursor: pointer; color: var(--text-2); font-size: 14px; }
-  .loading { opacity: .55; transition: opacity .15s; }
-  [hidden] { display: none !important; }
+  
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Top Navigation Bar */
+  .top-nav {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--text-main);
+  }
+  .brand-icon {
+    width: 28px;
+    height: 28px;
+    background: var(--yellow-400);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    color: #0f172a;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  .brand-badge {
+    font-size: 11px;
+    background: var(--yellow-100);
+    color: var(--yellow-900);
+    border: 1px solid var(--yellow-300);
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+  }
+  .status-dot.warn { background: var(--yellow-500); }
+  .status-dot.err { background: #ef4444; }
+
+  /* Main Container */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Hero Section */
+  .hero-header {
+    margin-bottom: 4px;
+  }
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--yellow-900);
+    background: var(--yellow-100);
+    border: 1px solid var(--yellow-300);
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    margin: 0 0 8px;
+    color: var(--text-main);
+  }
+  .hero-subtitle {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 720px;
+    margin: 0;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Search Panel */
+  .search-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border-top: 3px solid var(--yellow-400);
+  }
+  form.search {
+    display: flex;
+    gap: 10px;
+  }
+  .search-input-wrap {
+    position: relative;
+    flex: 1;
+  }
+  .search-input-wrap svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+  input[type=text] {
+    width: 100%;
+    font: inherit;
+    font-size: 15px;
+    color: var(--text-main);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px 12px 42px;
+    transition: all 0.15s ease;
+  }
+  input[type=text]:focus, select:focus, input[type=number]:focus {
+    outline: none;
+    border-color: var(--yellow-500);
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.2);
+  }
+  .btn-search {
+    background: var(--yellow-400);
+    color: var(--primary-ink);
+    border: 1px solid var(--yellow-500);
+    border-radius: var(--radius-md);
+    padding: 12px 28px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-search:hover:not(:disabled) {
+    background: var(--yellow-300);
+  }
+  .btn-search:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Preset Demo Pills */
+  .demo-presets {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .preset-label {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .preset-btn {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset-btn:hover {
+    background: var(--yellow-100);
+    border-color: var(--yellow-400);
+    color: var(--yellow-900);
+  }
+
+  /* Engine Settings Section */
+  .settings-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .engine-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .engine-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .chip-group {
+    display: flex;
+    gap: 6px;
+  }
+  .chip {
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip:hover {
+    border-color: var(--text-muted);
+    color: var(--text-main);
+  }
+  .chip[aria-pressed=true] {
+    background: var(--yellow-100);
+    color: var(--yellow-900);
+    border-color: var(--yellow-400);
+    font-weight: 700;
+  }
+  .margin-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  select {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-main);
+  }
+
+  /* Status and Notifications */
+  .notice {
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .notice.warn {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+  }
+  .notice.err {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+
+  /* Minimalist Progress Loader */
+  .loading-card {
+    background: var(--yellow-50);
+    border: 1px solid var(--yellow-200);
+    border-radius: var(--radius-md);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--yellow-200);
+    border-top-color: var(--yellow-600);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-text {
+    font-size: 14px;
+    color: var(--yellow-900);
+    font-weight: 600;
+  }
+  .loading-subtext {
+    font-size: 12px;
+    color: var(--yellow-700);
+    margin-top: 2px;
+  }
+
+  /* Result Header */
+  .result-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .address-badge-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .address-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-main);
+    letter-spacing: -0.02em;
+  }
+  .quality-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* KPI Summary Grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1.1fr;
+    gap: 12px;
+  }
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 500px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
+  .kpi-card {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .kpi-card.hero {
+    background: #fffdf5;
+    border-color: var(--yellow-300);
+    border-left: 4px solid var(--yellow-400);
+  }
+  .kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text-main);
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .kpi-card.hero .kpi-value {
+    font-size: 36px;
+    color: #0f172a;
+  }
+  .kpi-unit {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+  .kpi-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* Two Column Layout: Visualizer & Controls */
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .analysis-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Roof Image Visualizer */
+  .visualizer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .image-container {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: #1e293b;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border);
+  }
+  .roof-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .view-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .view-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .view-btn:hover {
+    border-color: var(--text-main);
+    color: var(--text-main);
+  }
+  .view-btn[aria-pressed=true] {
+    background: var(--yellow-100);
+    color: var(--yellow-900);
+    border-color: var(--yellow-400);
+  }
+  .image-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* Installation Tuning Panel */
+  .tuning-card {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .tuning-header {
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
+  }
+  .tuning-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .tuning-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  /* Panel Count Stepper / Slider */
+  .slider-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .slider-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .slider-val-box {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .slider-number {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+  }
+  .slider-power {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--yellow-800);
+    background: var(--yellow-100);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--yellow-300);
+  }
+  .stepper-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .stepper-btn {
+    width: 32px;
+    height: 32px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-main);
+  }
+  .stepper-btn:hover:not(:disabled) {
+    background: var(--yellow-100);
+    border-color: var(--yellow-400);
+  }
+  .stepper-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  input[type=range] {
+    width: 100%;
+    height: 8px;
+    accent-color: var(--yellow-500);
+    cursor: pointer;
+  }
+
+  /* Informational comparison cards */
+  .comparison-callout {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--yellow-400);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .comparison-callout strong {
+    color: var(--text-main);
+  }
+
+  /* Section Title */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+
+  /* Monthly Production Chart */
+  .chart-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .chart {
+    position: relative;
+    width: 100%;
+  }
+  .chart svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .chart .bar {
+    fill: var(--accent-bar);
+    transition: fill 0.15s ease;
+  }
+  .chart .bar.peak {
+    fill: var(--accent-bar-peak);
+  }
+  .chart .hit {
+    fill: transparent;
+    outline: none;
+    cursor: pointer;
+  }
+  .chart .hit:hover + .bar,
+  .chart .hit:focus-visible + .bar {
+    fill: var(--yellow-600);
+  }
+  .chart .grid {
+    stroke: var(--border-subtle);
+    stroke-width: 1;
+  }
+  .chart text {
+    fill: var(--text-muted);
+    font-size: 12px;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart text.peak {
+    fill: var(--text-main);
+    font-weight: 700;
+  }
+  .chart svg.hovering text.peak {
+    visibility: hidden;
+  }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    background: #0f172a;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+    display: none;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+  }
+  .tip b {
+    color: var(--yellow-300);
+    font-size: 13px;
+  }
+
+  /* Tables */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    color: var(--text-muted);
+    font-weight: 600;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border);
+  }
+  th:first-child, td:first-child {
+    text-align: left;
+  }
+  tr.current td {
+    background: var(--yellow-50);
+    font-weight: 700;
+    color: var(--yellow-900);
+  }
+  tr.pick {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  tr.pick:hover td {
+    background: #fefce8;
+  }
+
+  /* Generic / Fallback Mode Form */
+  .generic-inputs {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .input-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* Attribution & Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+    padding-top: 24px;
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .footer-links {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .footer-links a {
+    color: var(--text-muted);
+    text-decoration: underline;
+  }
+
+  /* Utility */
+  .loading {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  [hidden] {
+    display: none !important;
+  }
+  details summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 6px 0;
+  }
+  details summary:hover {
+    color: var(--text-main);
+  }
+
+  /* Financial / Profitability Report Section */
+  .econ-card {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    border-top: 3px solid var(--yellow-400);
+  }
+  .econ-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .econ-title-wrap {
+    max-width: 720px;
+  }
+  .econ-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+    color: var(--text-main);
+  }
+  .econ-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.45;
+  }
+  .btn-print {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-print:hover {
+    background: var(--yellow-100);
+    border-color: var(--yellow-400);
+    color: var(--yellow-900);
+  }
+  
+  .econ-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 900px) {
+    .econ-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .econ-kpi-grid { grid-template-columns: 1fr; }
+  }
+
+  .econ-kpi-card {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .econ-kpi-card.highlight {
+    background: #fffdf2;
+    border-color: var(--yellow-300);
+    border-left: 4px solid var(--yellow-400);
+  }
+  .econ-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .econ-kpi-num {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .econ-kpi-num.pos {
+    color: #15803d;
+  }
+  .econ-kpi-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--yellow-900);
+    background: var(--yellow-100);
+    border: 1px solid var(--yellow-300);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 6px;
+    align-self: flex-start;
+  }
+  .econ-kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  /* Two Column Detail: Breakdown & Simulator */
+  .econ-detail-cols {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+  @media (max-width: 860px) {
+    .econ-detail-cols { grid-template-columns: 1fr; }
+  }
+
+  .econ-breakdown-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .econ-subheading {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .econ-row-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .econ-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-subtle);
+    font-size: 13px;
+    border: 1px solid var(--border-subtle);
+  }
+  .econ-row.total {
+    background: var(--yellow-50);
+    border-color: var(--yellow-300);
+    font-weight: 700;
+  }
+  .econ-row-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .econ-row-main {
+    font-weight: 600;
+    color: var(--text-main);
+  }
+  .econ-row-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .econ-row-val {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .econ-val-pos { color: #15803d; }
+  .econ-val-neg { color: #b91c1c; }
+
+  /* Market Simulator / Assumptions Box */
+  .econ-sim-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    justify-content: space-between;
+  }
+  .econ-sim-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .econ-input-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .econ-input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .econ-input-title {
+    font-weight: 600;
+    color: var(--text-main);
+  }
+  .econ-input-val {
+    font-weight: 700;
+    color: var(--yellow-900);
+    background: var(--yellow-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .econ-input-item input[type=range] {
+    margin: 4px 0 2px;
+  }
+  .econ-input-hints {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .btn-reset-econ {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    align-self: flex-start;
+    transition: all 0.15s;
+  }
+  .btn-reset-econ:hover {
+    border-color: var(--text-muted);
+    color: var(--text-main);
+  }
+
+  /* Print Styles */
+  @media print {
+    body { background: #fff !important; color: #000 !important; font-size: 12pt; }
+    .top-nav, .search-card, .demo-presets, .settings-strip, .stepper-btns,
+    .view-controls, #marginBox, .btn-search, #alts, .btn-print, .btn-reset-econ,
+    .econ-sim-box input[type=range], #slider, footer {
+      display: none !important;
+    }
+    main { padding: 0 !important; max-width: 100% !important; gap: 16px !important; }
+    .card {
+      border: 1px solid #ccc !important;
+      box-shadow: none !important;
+      break-inside: avoid;
+      padding: 16px !important;
+    }
+    .kpi-grid, .econ-kpi-grid {
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 10px !important;
+    }
+    .econ-detail-cols {
+      grid-template-columns: 1fr 1fr !important;
+    }
+    .chart svg { max-height: 200px; }
+  }
 </style>
 </head>
 <body>
+
+<!-- Navigation Header -->
+<nav class="top-nav">
+  <div class="nav-inner">
+    <a href="/" class="brand">
+      <div class="brand-icon">S</div>
+      <span class="brand-title">Solary</span>
+      <span class="brand-badge">HackYeah Live Demo</span>
+    </a>
+    <div class="nav-status">
+      <span class="status-dot" id="apiDot"></span>
+      <span id="apiStatusText">Połączono z serwerem</span>
+    </div>
+  </div>
+</nav>
+
 <main>
-  <header>
-    <h1>Solary – panele na Twoim dachu</h1>
-    <p class="sub">Wpisz adres. Znajdziemy budynek, rozmieścimy panele na dachu i policzymy, ile prądu wyprodukują w ciągu roku.</p>
+  <!-- Hero Section -->
+  <header class="hero-header">
+    <div class="hero-tag">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.2 4.2l1.4 1.4m12.8 12.8 1.4 1.4M1 12h2m18 0h2M4.2 19.8l1.4-1.4m12.8-12.8 1.4-1.4"/></svg>
+      Geometria Dachu &amp; Algorytm Rozmieszczania PV
+    </div>
+    <h1>Fotowoltaika precyzyjnie dopasowana do Twojego dachu</h1>
+    <p class="hero-subtitle">Wpisz adres. System analizuje model dachu w 3D, omija kominy i przeszkody oraz wylicza prognozowaną produkcję energii z dokładnością do pojedynczego panelu.</p>
   </header>
 
-  <section class="card">
+  <!-- Search Card -->
+  <section class="card search-card">
     <form class="search" id="search">
-      <input type="text" id="address" placeholder="np. Mariacka 1, Katowice" autocomplete="street-address" aria-label="Adres budynku" required>
-      <button class="btn" id="go" type="submit">Szukaj</button>
+      <div class="search-input-wrap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="address" placeholder="Wpisz adres budynku, np. Mariacka 1, Katowice" autocomplete="street-address" aria-label="Adres budynku" required>
+      </div>
+      <button class="btn-search" id="go" type="submit">Analizuj dach</button>
     </form>
-    <div class="row">
-      <span class="small">Kto rozmieszcza panele:</span>
-      <div class="row" id="layouts" role="group" aria-label="Algorytm rozmieszczenia paneli"></div>
-      <label class="small" id="marginBox">Odstęp od krawędzi i przeszkód
-        <select id="margin">
-          <option value="0.1">10 cm</option><option value="0.2" selected>20 cm</option>
-          <option value="0.3">30 cm</option><option value="0.5">50 cm</option>
-        </select>
-      </label>
+
+    <!-- Quick Demo Shortcuts for Live Presentation -->
+    <div class="demo-presets">
+      <span class="preset-label">Szybkie przykłady live demo:</span>
+      <button type="button" class="preset-btn" data-addr="Mariacka 1, Katowice">Mariacka 1, Katowice</button>
+      <button type="button" class="preset-btn" data-addr="Świdnicka 10, Wrocław">Świdnicka 10, Wrocław</button>
+      <button type="button" class="preset-btn" data-addr="Nowy Świat 20, Warszawa">Nowy Świat 20, Warszawa</button>
+      <button type="button" class="preset-btn" data-addr="Bohaterów Monte Cassino 15, Sopot">Monte Cassino 15, Sopot</button>
     </div>
-    <p class="small">Działa tam, gdzie Google Solar API ma dane o dachach (głównie większe miasta). Poza zasięgiem pokażemy szacunek bez rozmieszczenia paneli.</p>
+
+    <!-- Algorithm Settings -->
+    <div class="settings-strip">
+      <div class="engine-choice">
+        <span class="engine-label">Algorytm ułożenia:</span>
+        <div class="chip-group" id="layouts" role="group" aria-label="Algorytm rozmieszczenia paneli"></div>
+      </div>
+      <div class="margin-select-wrap" id="marginBox">
+        <span>Odstęp bezpieczeństwa:</span>
+        <select id="margin" aria-label="Margines od krawędzi">
+          <option value="0.1">10 cm</option>
+          <option value="0.2" selected>20 cm (zalecany)</option>
+          <option value="0.3">30 cm</option>
+          <option value="0.5">50 cm</option>
+        </select>
+      </div>
+    </div>
   </section>
 
+  <!-- Error and Loading States -->
   <div id="error" class="notice err" role="alert" hidden></div>
-  <div id="busy" class="small" role="status" hidden>Analizuję dach… za pierwszym razem trwa to około 10–20 sekund.</div>
+  <div id="busy" class="loading-card" role="status" hidden>
+    <div class="spinner"></div>
+    <div>
+      <div class="loading-text">Pobieranie i modelowanie dachu w 3D…</div>
+      <div class="loading-subtext">Analiza warstw mapy wysokości, wykrywanie kominów i wyliczanie produkcji (10–15 s dla nowego adresu).</div>
+    </div>
+  </div>
 
+  <!-- Results Section -->
   <div id="result" hidden>
-    <div style="display:flex; flex-direction:column; gap:16px">
-      <section class="card">
-        <h2 id="label"></h2>
-        <div id="alts" class="row" hidden></div>
+    <div style="display:flex; flex-direction:column; gap:20px">
+      
+      <!-- Address & Warnings Header -->
+      <section class="card result-header">
+        <div class="address-badge-row">
+          <div>
+            <h2 class="address-title" id="label"></h2>
+            <div id="alts" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;" hidden></div>
+          </div>
+          <div class="quality-badge" id="imageryQualityBadge">
+            <span class="status-dot"></span>
+            <span id="qualityText">Google Solar 3D</span>
+          </div>
+        </div>
         <div id="warnings" style="display:flex; flex-direction:column; gap:8px"></div>
       </section>
 
-      <!-- roof found -->
-      <div id="roof" class="grid2" hidden>
-        <section class="card">
-          <img id="img" class="roof-img" alt="">
-          <div class="row" id="views" role="group" aria-label="Widok dachu"></div>
-          <p class="small" id="imagery"></p>
+      <!-- KPI Summary Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card hero">
+          <div class="kpi-label">Prognoza rocznej produkcji</div>
+          <div class="kpi-value" id="kwhYear">–</div>
+          <div class="kpi-hint">Uwzględnia straty systemu (14%) i cienie</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Moc instalacji</div>
+          <div class="kpi-value" id="kwp">–</div>
+          <div class="kpi-hint" id="panelsLabelSub">– paneli × 400 W</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Wydajność z 1 kWp</div>
+          <div class="kpi-value" id="perKwp">–</div>
+          <div class="kpi-hint">Wskaźnik jakości nasłonecznienia dachu</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pojemność dachu</div>
+          <div class="kpi-value" id="maxKwp">–</div>
+          <div class="kpi-hint" id="maxPanelsSub">Maksymalna liczba paneli</div>
+        </div>
+      </div>
+
+      <!-- Main Visualizer & Tuning Columns -->
+      <div id="roof" class="analysis-grid" hidden>
+        <!-- Left Column: Visualizer Image -->
+        <section class="card visualizer-card">
+          <div class="slider-top">
+            <h3 class="tuning-title">Wizualizacja dachu</h3>
+            <div class="view-controls" id="views" role="group" aria-label="Widok dachu"></div>
+          </div>
+          <div class="image-container">
+            <img id="img" class="roof-img" alt="Wizualizacja rozmieszczenia paneli">
+          </div>
+          <div class="image-meta" id="imagery"></div>
         </section>
-        <section class="card">
-          <div class="hero">
-            <div class="label">Roczna produkcja</div>
-            <div class="value" id="kwhYear"></div>
+
+        <!-- Right Column: Interactive Panel Slider & Engine Details -->
+        <section class="card tuning-card">
+          <div class="tuning-header">
+            <h3 class="tuning-title">Dopasowanie wielkości instalacji</h3>
+            <p class="tuning-subtitle">Zmieniaj liczbę paneli na żywo, aby zobaczyć zaktualizowaną produkcję i układ.</p>
           </div>
-          <div class="tiles">
-            <div class="tile"><div class="label">Moc instalacji</div><div class="value" id="kwp"></div></div>
-            <div class="tile"><div class="label">Liczba paneli</div><div class="value" id="panels"></div></div>
-            <div class="tile"><div class="label">Uzysk z 1 kWp</div><div class="value" id="perKwp"></div></div>
-            <div class="tile"><div class="label">Maks. na tym dachu</div><div class="value" id="maxKwp"></div></div>
+
+          <div class="slider-box">
+            <div class="slider-top">
+              <div class="slider-val-box">
+                <span class="slider-number" id="panelsDisplay">–</span>
+                <span class="slider-power" id="kwpDisplay">–</span>
+              </div>
+              <div class="stepper-btns">
+                <button type="button" class="stepper-btn" id="btnMinus" aria-label="Jeden panel mniej">−</button>
+                <button type="button" class="stepper-btn" id="btnPlus" aria-label="Jeden panel więcej">+</button>
+              </div>
+            </div>
+            <input type="range" id="slider" min="1" max="1" step="1" value="1" aria-label="Suwak liczby paneli">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums;">
+              <span>1 panel</span>
+              <span id="sliderMaxVal">Maks</span>
+            </div>
           </div>
-          <label for="slider" id="sliderLabel"></label>
-          <input type="range" id="slider" min="1" max="1" step="1" value="1">
-          <p class="small" id="pvgisNote"></p>
-          <p class="small" id="layoutNote"></p>
+
+          <!-- Comparison notes -->
+          <div class="comparison-callout" id="layoutNote"></div>
+          <div class="comparison-callout" id="pvgisNote"></div>
         </section>
       </div>
 
-      <!-- no roof data -->
+      <!-- Fallback / Generic View for addresses without Google 3D data -->
       <section id="generic" class="card" hidden>
-        <div class="hero">
-          <div class="label">Szacunkowa roczna produkcja</div>
-          <div class="value" id="gKwhYear"></div>
+        <h3 class="section-title">Szacunkowy kalkulator produkcji (PVGIS)</h3>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px;">
+          Pod tym adresem brak jeszcze szczegółowych danych 3D o dachu. Poniżej kalkulacja oparta o europejski model PVGIS dla tych współrzędnych geograficznych.
+        </p>
+        <div class="kpi-grid" style="margin-bottom:20px;">
+          <div class="kpi-card hero">
+            <div class="kpi-label">Szacowana roczna produkcja</div>
+            <div class="kpi-value" id="gKwhYear">–</div>
+          </div>
         </div>
-        <div class="row">
-          <label>Moc (kWp) <input type="number" id="gKwp" min="0.4" max="1000" step="0.1" style="width:110px"></label>
-          <label>Nachylenie (°) <input type="number" id="gTilt" min="0" max="90" step="1" style="width:90px"></label>
-          <label>Kierunek
+        <div class="generic-inputs">
+          <div class="input-group">
+            <label for="gKwp">Moc (kWp)</label>
+            <input type="number" id="gKwp" min="0.4" max="1000" step="0.1" style="width:110px">
+          </div>
+          <div class="input-group">
+            <label for="gTilt">Kąt nachylenia (°)</label>
+            <input type="number" id="gTilt" min="0" max="90" step="1" style="width:100px">
+          </div>
+          <div class="input-group">
+            <label for="gAz">Kierunek połaci</label>
             <select id="gAz">
-              <option value="180">południe</option><option value="135">południowy wschód</option>
-              <option value="225">południowy zachód</option><option value="90">wschód</option>
-              <option value="270">zachód</option><option value="45">północny wschód</option>
-              <option value="315">północny zachód</option><option value="0">północ</option>
+              <option value="180">Południe (180°)</option>
+              <option value="135">Południowy wschód (135°)</option>
+              <option value="225">Południowy zachód (225°)</option>
+              <option value="90">Wschód (90°)</option>
+              <option value="270">Zachód (270°)</option>
+              <option value="45">Północny wschód (45°)</option>
+              <option value="315">Północny zachód (315°)</option>
+              <option value="0">Północ (0°)</option>
             </select>
-          </label>
-          <button class="btn" id="gGo" type="button">Przelicz</button>
+          </div>
+          <button class="btn-search" id="gGo" type="button" style="padding:10px 20px;">Przelicz</button>
         </div>
-        <p class="small" id="gNote"></p>
+        <p class="image-meta" id="gNote" style="margin-top:12px;"></p>
       </section>
 
-      <section class="card">
-        <h2>Produkcja w kolejnych miesiącach (kWh)</h2>
+      <!-- Economic and Financial Profitability Report -->
+      <section class="card econ-card" id="econSection">
+        <div class="econ-topbar">
+          <div class="econ-title-wrap">
+            <h3 class="econ-title">Raport opłacalności inwestycji (Model Net-Billing 2025/2026)</h3>
+            <p class="econ-desc">
+              Kalkulacja oparta o aktualne rynkowe ceny montażu instalacji pod klucz, koszty serwisu (OPEX), taryfę zakupu prądu z sieci oraz rynkową cenę odkupu energii (RCEm).
+            </p>
+          </div>
+          <button type="button" class="btn-print" id="btnPrint" aria-label="Wydrukuj raport opłacalności">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+            Drukuj raport / Zapisz PDF
+          </button>
+        </div>
+
+        <!-- 4 Key Financial KPIs -->
+        <div class="econ-kpi-grid">
+          <div class="econ-kpi-card">
+            <div class="econ-kpi-label">Koszt instalacji (CAPEX)</div>
+            <div class="econ-kpi-num" id="econCapexGross">–</div>
+            <div class="econ-kpi-badge" id="econCapexNet">– po uldze PIT</div>
+            <div class="econ-kpi-sub">Montaż pod klucz z 8% VAT. Ulga termomodernizacyjna 12% w PIT.</div>
+          </div>
+          <div class="econ-kpi-card highlight">
+            <div class="econ-kpi-label">Roczny zysk na czysto (Netto)</div>
+            <div class="econ-kpi-num pos" id="econNetSavings">–</div>
+            <div class="econ-kpi-badge" id="econGrossSavings">– przed OPEX</div>
+            <div class="econ-kpi-sub">Oszczędność na rachunkach + depozyt net-billing, po potrąceniu serwisu.</div>
+          </div>
+          <div class="econ-kpi-card">
+            <div class="econ-kpi-label">Czas zwrotu inwestycji (ROI)</div>
+            <div class="econ-kpi-num" id="econPaybackNet">–</div>
+            <div class="econ-kpi-badge" id="econPaybackGross">– bez ulgi PIT</div>
+            <div class="econ-kpi-sub">Liczba lat do pełnego zamortyzowania poniesionych nakładów.</div>
+          </div>
+          <div class="econ-kpi-card">
+            <div class="econ-kpi-label">Skumulowany zysk (25 lat)</div>
+            <div class="econ-kpi-num pos" id="econProfit25y">–</div>
+            <div class="econ-kpi-badge">Po odliczeniu inwestycji</div>
+            <div class="econ-kpi-sub">Uwzględnia roczną degradację paneli (-0,5%/r) i koszty eksploatacji.</div>
+          </div>
+        </div>
+
+        <!-- Detailed Breakdown & Interactive Simulator -->
+        <div class="econ-detail-cols">
+          <!-- Flow Breakdown -->
+          <div class="econ-breakdown-box">
+            <h4 class="econ-subheading">
+              <span>Roczny bilans energii i oszczędności</span>
+              <span style="font-size:12px; font-weight:normal; color:var(--text-muted);" id="econGenSub">– kWh/rok</span>
+            </h4>
+            <div class="econ-row-list">
+              <div class="econ-row">
+                <div class="econ-row-name">
+                  <span class="econ-row-main">Zużycie bieżące (Autokonsumpcja)</span>
+                  <span class="econ-row-sub" id="econSelfKwhSub">– kWh bezpośrednio zużyte w budynku</span>
+                </div>
+                <div class="econ-row-val econ-val-pos" id="econSelfSavings">–</div>
+              </div>
+              <div class="econ-row">
+                <div class="econ-row-name">
+                  <span class="econ-row-main">Sprzedaż nadwyżek (Net-billing)</span>
+                  <span class="econ-row-sub" id="econExportKwhSub">– kWh oddane do sieci elektroenergetycznej</span>
+                </div>
+                <div class="econ-row-val econ-val-pos" id="econExportIncome">–</div>
+              </div>
+              <div class="econ-row">
+                <div class="econ-row-name">
+                  <span class="econ-row-main">Eksploatacja i serwis (OPEX)</span>
+                  <span class="econ-row-sub">Przeglądy, ubezpieczenie i rezerwa na falownik (0,8% wartości/rok)</span>
+                </div>
+                <div class="econ-row-val econ-val-neg" id="econOpex">–</div>
+              </div>
+              <div class="econ-row total">
+                <div class="econ-row-name">
+                  <span class="econ-row-main">Roczny bilans finansowy netto</span>
+                  <span class="econ-row-sub">Czysty roczny zysk w domowym budżecie</span>
+                </div>
+                <div class="econ-row-val econ-val-pos" id="econNetTotal" style="font-size:17px;">–</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Market Assumptions & Simulator -->
+          <div class="econ-sim-box">
+            <div class="econ-sim-inputs">
+              <h4 class="econ-subheading">
+                <span>Symulator założeń rynkowych</span>
+              </h4>
+              <div class="econ-input-item">
+                <div class="econ-input-header">
+                  <span class="econ-input-title">Cena zakupu prądu z sieci (G11 + dystrybucja)</span>
+                  <span class="econ-input-val" id="valRetail">1,10 zł/kWh</span>
+                </div>
+                <input type="range" id="simRetail" min="0.70" max="2.00" step="0.05" value="1.10" aria-label="Cena zakupu prądu z sieci">
+                <div class="econ-input-hints">
+                  <span>0,70 zł</span>
+                  <span>Średnia w Polsce: 1,10–1,25 zł</span>
+                  <span>2,00 zł</span>
+                </div>
+              </div>
+
+              <div class="econ-input-item">
+                <div class="econ-input-header">
+                  <span class="econ-input-title">Cena odkupu w net-billingu (RCEm)</span>
+                  <span class="econ-input-val" id="valFeedIn">0,40 zł/kWh</span>
+                </div>
+                <input type="range" id="simFeedIn" min="0.15" max="0.90" step="0.05" value="0.40" aria-label="Cena odkupu energii">
+                <div class="econ-input-hints">
+                  <span>0,15 zł</span>
+                  <span>Średnia giełdowa: 0,35–0,45 zł</span>
+                  <span>0,90 zł</span>
+                </div>
+              </div>
+
+              <div class="econ-input-item">
+                <div class="econ-input-header">
+                  <span class="econ-input-title">Poziom autokonsumpcji w budynku</span>
+                  <span class="econ-input-val" id="valSelfCons">25%</span>
+                </div>
+                <input type="range" id="simSelfCons" min="10" max="75" step="5" value="25" aria-label="Poziom autokonsumpcji">
+                <div class="econ-input-hints">
+                  <span>10% (małe zużycie)</span>
+                  <span>25% (standard)</span>
+                  <span>75% (pompa / magazyn)</span>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-reset-econ" id="btnResetEcon">Przywróć rynkowe stawki bazowe</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Monthly Chart -->
+      <section class="card chart-card">
+        <div class="chart-header">
+          <h3 class="section-title" style="margin:0;">Miesięczny profil generacji energii (kWh)</h3>
+          <span style="font-size:12px; color:var(--text-muted);" id="monthNote"></span>
+        </div>
         <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
         <details>
-          <summary>Pokaż jako tabelę</summary>
-          <div class="table-scroll"><table id="monthTable"></table></div>
+          <summary>Pokaż szczegółowe dane liczbowe w tabeli</summary>
+          <div class="table-scroll" style="margin-top:10px;"><table id="monthTable"></table></div>
         </details>
-        <p class="small" id="monthNote"></p>
       </section>
 
+      <!-- Standard Package Sizes -->
       <section class="card">
-        <h2>Inne wielkości instalacji</h2>
+        <h3 class="section-title">Porównanie standardowych mocy instalacji</h3>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Kliknij wybrany wiersz, aby natychmiast zastosować konfigurację na dachu:</p>
         <div class="table-scroll"><table id="sizes"></table></div>
       </section>
 
+      <!-- Roof Segments Table -->
       <section class="card" id="segCard" hidden>
-        <h2>Połacie dachu</h2>
+        <h3 class="section-title">Analiza geometryczna połaci dachu</h3>
         <div class="table-scroll"><table id="segments"></table></div>
-        <p class="small" id="segNote"></p>
+        <p class="image-meta" id="segNote" style="margin-top:12px;"></p>
       </section>
 
-      <p class="small" id="attribution"></p>
+      <!-- Attribution Footer -->
+      <footer>
+        <p id="attribution"></p>
+        <div class="footer-links">
+          <span>Projekt Solary – HackYeah 2026</span>
+          <span>Google Solar API</span>
+          <span>OpenStreetMap</span>
+          <span>PVGIS Unia Europejska</span>
+        </div>
+      </footer>
     </div>
   </div>
 </main>
@@ -195,31 +1475,115 @@ const nf1 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 1, maximumFr
 const MONTHS = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 const MONTHS_FULL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
 const FACING = { N: 'północ', NE: 'płn.-wsch.', E: 'wschód', SE: 'płd.-wsch.', S: 'południe', SW: 'płd.-zach.', W: 'zachód', NW: 'płn.-zach.' };
+
 const WARNINGS = {
-  street_only: 'Znaleźliśmy tylko ulicę, bez numeru domu. Wskazany budynek może być przypadkowy – dopisz numer.',
-  far_from_address: 'Znaleziony budynek leży dalej od adresu. Sprawdź na widoku „Mój dom?”, czy to właściwy dach.',
-  monthly_fallback: 'Serwis PVGIS nie odpowiada: podział na miesiące to typowy profil dla Polski.',
-  images_unavailable: 'Nie udało się pobrać zdjęcia dachu, pokazujemy same liczby.',
-  layout_fallback: 'Nie udało się pobrać mapy wysokości dachu, więc panele rozmieścił Google, a nie nasz algorytm.',
-};
-const LAYOUTS = [['own', 'Nasz algorytm'], ['google', 'Google']];
-const REASONS = {
-  no_roof_data: 'Google Solar API nie ma danych o dachu pod tym adresem, więc nie rozmieścimy paneli. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
-  no_panels_fit: 'Na znalezionym dachu nie mieści się żaden panel. Poniżej szacunek produkcji z PVGIS dla podanej mocy, nachylenia i kierunku.',
-};
-const VIEWS = [['selected', 'Wybrane panele'], ['all', 'Wszystkie panele'], ['confirm', 'Mój dom?']];
-const VIEW_ALT = {
-  selected: 'Zdjęcie lotnicze dachu z wybranymi panelami i mapą nasłonecznienia',
-  all: 'Zdjęcie lotnicze dachu ze wszystkimi panelami, które się mieszczą',
-  confirm: 'Zdjęcie lotnicze: czerwona kropka to szukany adres, czerwona ramka to znaleziony budynek',
+  street_only: 'Wyszukiwarka znalazła tylko ulicę bez dokładnego numeru budynku. Wskazany dach może być orientacyjny – wpisz numer domu.',
+  far_from_address: 'Znaleziony budynek znajduje się w pewnej odległości od adresu. Sprawdź na widoku „Weryfikacja adresu”, czy to właściwy obiekt.',
+  monthly_fallback: 'Baza PVGIS chwilowo nie odpowiada: profil miesięczny wyznaczono z uśrednionego modelu dla Polski.',
+  images_unavailable: 'Podgląd zdjęć lotniczych jest niedostępny, prezentowane są obliczenia numeryczne.',
+  layout_fallback: 'Nie udało się pobrać mapy wysokości dachu, użyto standardowego układu Google.',
 };
 
-let query = null;      // {address} or {lat, lon}: what the size controls re-send
-let pickedLabel = null; // label of an alternative chosen from the "other matches" list
+const LAYOUTS = [
+  ['pro', 'Solary PRO (Siatka modułowa)'],
+  ['own', 'Solary Classic (Swobodny)'],
+  ['google', 'Google Solar']
+];
+const REASONS = {
+  no_roof_data: 'Google Solar API nie posiada jeszcze danych geometrycznych 3D dla tego dachu. Poniżej przedstawiono szacunek z bazy PVGIS.',
+  no_panels_fit: 'Na tym dachu nie mieści się żaden pełnowymiarowy panel słoneczny. Poniżej szacunek z bazy PVGIS.',
+};
+
+const VIEWS = [['selected', 'Wybrane panele'], ['all', 'Wszystkie możliwe'], ['confirm', 'Weryfikacja adresu']];
+const VIEW_ALT = {
+  selected: 'Zdjęcie lotnicze dachu z wybranymi panelami i mapą nasłonecznienia',
+  all: 'Zdjęcie lotnicze dachu ze wszystkimi dopasowanymi panelami',
+  confirm: 'Zdjęcie lotnicze: czerwona ramka oznacza obrys budynku, a punkt szukany adres',
+};
+
+let query = null;
+let pickedLabel = null;
 let view = 'selected';
-let layout = 'own';     // who places the panels: sent with every request
+let layout = 'pro';
 let data = null;
 let request = 0;
+let retailPrice = 1.10;
+let feedInPrice = 0.40;
+let selfConsumption = 25.0;
+
+function estimateCapex(kwp) {
+  let rate = 4800;
+  if (kwp <= 4.0) rate = 4800;
+  else if (kwp <= 7.0) rate = 4200;
+  else if (kwp <= 12.0) rate = 3700;
+  else if (kwp <= 20.0) rate = 3300;
+  else rate = 3000;
+  return Math.round(kwp * rate);
+}
+
+function calcEconomics(kwp, kwhYear, retPrice = retailPrice, feedPrice = feedInPrice, selfCons = selfConsumption) {
+  kwp = Math.max(0.1, Number(kwp) || 0.1);
+  kwhYear = Math.max(0, Number(kwhYear) || 0);
+  retPrice = Math.max(0, Number(retPrice) || 0);
+  feedPrice = Math.max(0, Number(feedPrice) || 0);
+  selfCons = Math.min(100, Math.max(0, Number(selfCons) || 0));
+
+  const capexGross = estimateCapex(kwp);
+  const pitRelief = Math.round(capexGross * 0.12);
+  const capexNet = capexGross - pitRelief;
+  const opex = Math.round(Math.max(150, capexGross * 0.008));
+
+  const selfRatio = selfCons / 100;
+  const selfKwh = kwhYear * selfRatio;
+  const exportKwh = kwhYear * (1 - selfRatio);
+
+  const selfSavings = Math.round(selfKwh * retPrice);
+  const exportIncome = Math.round(exportKwh * feedPrice);
+  const grossSavings = selfSavings + exportIncome;
+  const netSavings = grossSavings - opex;
+
+  const paybackGross = netSavings > 0 ? (capexGross / netSavings).toFixed(1) : null;
+  const paybackNet = netSavings > 0 ? (capexNet / netSavings).toFixed(1) : null;
+
+  let total25y = 0;
+  for (let yr = 0; yr < 25; yr++) {
+    total25y += netSavings * (1 - 0.005 * yr);
+  }
+  const profit25y = Math.round(total25y - capexGross);
+
+  return {
+    capexGross, pitRelief, capexNet, opex,
+    selfCons, selfKwh, exportKwh,
+    selfSavings, exportIncome, grossSavings, netSavings,
+    paybackGross, paybackNet, profit25y,
+    retailPrice: retPrice, feedInPrice: feedPrice
+  };
+}
+
+function renderEconomics(kwp, kwhYear) {
+  const econ = calcEconomics(kwp, kwhYear, retailPrice, feedInPrice, selfConsumption);
+
+  $('econCapexGross').textContent = `${nf0.format(econ.capexGross)} zł`;
+  $('econCapexNet').textContent = `${nf0.format(econ.capexNet)} zł z ulgą PIT (12%)`;
+
+  $('econNetSavings').textContent = `+${nf0.format(econ.netSavings)} zł/rok`;
+  $('econGrossSavings').textContent = `${nf0.format(econ.grossSavings)} zł przed OPEX`;
+
+  $('econPaybackNet').textContent = econ.paybackNet ? `${econ.paybackNet} lat` : '–';
+  $('econPaybackGross').textContent = econ.paybackGross ? `${econ.paybackGross} lat bez ulgi` : '–';
+
+  $('econProfit25y').textContent = `+${nf0.format(econ.profit25y)} zł`;
+
+  $('econGenSub').textContent = `${nf0.format(kwhYear)} kWh / rok`;
+  $('econSelfKwhSub').textContent = `${nf0.format(econ.selfKwh)} kWh (${nf0.format(econ.selfCons)}%) zużyte na bieżąco (uniknięty zakup po ${nf1.format(econ.retailPrice)} zł/kWh)`;
+  $('econSelfSavings').textContent = `+${nf0.format(econ.selfSavings)} zł/rok`;
+
+  $('econExportKwhSub').textContent = `${nf0.format(econ.exportKwh)} kWh (${nf0.format(100 - econ.selfCons)}%) oddane do sieci (odkup po ${nf1.format(econ.feedInPrice)} zł/kWh)`;
+  $('econExportIncome').textContent = `+${nf0.format(econ.exportIncome)} zł/rok`;
+
+  $('econOpex').textContent = `−${nf0.format(econ.opex)} zł/rok`;
+  $('econNetTotal').textContent = `+${nf0.format(econ.netSavings)} zł/rok`;
+}
 
 function el(tag, text, attrs = {}) {
   const e = document.createElement(tag);
@@ -244,9 +1608,9 @@ async function load(params) {
   } catch (e) {
     if (mine !== request) return;
     const byStatus = {
-      404: 'Nie znaleziono takiego adresu. Dopisz miasto i numer domu.',
+      404: 'Nie znaleziono takiego adresu w Polsce. Wpisz miasto oraz numer domu.',
       503: 'Na serwerze brakuje klucza Google Solar API (plik .env).',
-      502: 'Usługa zewnętrzna nie odpowiada (Google Solar API albo wyszukiwarka adresów). Spróbuj ponownie za chwilę.',
+      502: 'Usługa zewnętrzna (Google Solar API lub OpenStreetMap) nie odpowiada. Spróbuj za chwilę.',
     };
     const detail = typeof e.detail === 'string' ? e.detail : '';
     $('error').textContent = byStatus[e.status] || detail || 'Nie udało się połączyć z serwerem.';
@@ -269,9 +1633,9 @@ function show() {
   alts.replaceChildren();
   alts.hidden = !d.alternatives.length;
   if (d.alternatives.length) {
-    alts.append(el('span', 'Inne dopasowania:', { class: 'small' }));
+    alts.append(el('span', 'Inne znalezione lokalizacje:', { style: 'font-size:12px; color:var(--text-muted); align-self:center;' }));
     for (const a of d.alternatives) {
-      const b = el('button', a.label.split(',').slice(0, 4).join(','), { class: 'chip', type: 'button', title: a.label });
+      const b = el('button', a.label.split(',').slice(0, 3).join(','), { class: 'preset-btn', type: 'button', title: a.label });
       b.addEventListener('click', () => {
         query = { lat: a.lat, lon: a.lon };
         pickedLabel = a.label;
@@ -289,51 +1653,99 @@ function show() {
   $('roof').hidden = !d.roof_available;
   $('generic').hidden = d.roof_available;
   $('segCard').hidden = !d.roof_available;
-  if (d.roof_available) showRoof(d); else showGeneric(d);
+  
+  if (d.roof_available) {
+    showRoof(d);
+  } else {
+    showGeneric(d);
+  }
+
   $('attribution').textContent = d.roof_available
-    ? `Dane dachu i zdjęcia © Google (Solar API). Wyszukiwanie adresów © autorzy OpenStreetMap. Profil miesięczny: PVGIS © Unia Europejska. Dane dachu przechowujemy najwyżej ${d.assumptions.cache_days} dni. Wyniki są szacunkowe.`
-    : 'Wyszukiwanie adresów © autorzy OpenStreetMap. Szacunek produkcji: PVGIS © Unia Europejska. Wyniki są szacunkowe.';
+    ? `Dane fotowoltaiczne i zdjęcia satelitarne: © Google (Solar API). Geokodowanie: © autorzy OpenStreetMap. Model profilu nasłonecznienia: PVGIS © Unia Europejska. Dane geometryczne są buforowane do ${d.assumptions.cache_days} dni. Obliczenia stanowią prognozę inżynieryjną.`
+    : 'Wyszukiwanie adresów: © autorzy OpenStreetMap. Model nasłonecznienia: PVGIS © Unia Europejska.';
 }
 
 function showRoof(d) {
   const s = d.selected, b = d.building;
-  $('kwhYear').textContent = nf0.format(s.kwh_year) + ' kWh';
-  $('kwp').textContent = nf1.format(s.kwp) + ' kWp';
-  $('panels').textContent = nf0.format(s.panels);
-  $('perKwp').textContent = nf0.format(s.kwh_per_kwp) + ' kWh';
-  $('maxKwp').textContent = nf1.format(b.max_kwp) + ' kWp';
+  $('kwhYear').innerHTML = `${nf0.format(s.kwh_year)} <span class="kpi-unit">kWh/rok</span>`;
+  $('kwp').innerHTML = `${nf1.format(s.kwp)} <span class="kpi-unit">kWp</span>`;
+  $('panelsLabelSub').textContent = `${nf0.format(s.panels)} ${panelsWord(s.panels)} × ${d.panel.watts} W`;
+  $('perKwp').innerHTML = `${nf0.format(s.kwh_per_kwp)} <span class="kpi-unit">kWh</span>`;
+  $('maxKwp').innerHTML = `${nf1.format(b.max_kwp)} <span class="kpi-unit">kWp</span>`;
+  $('maxPanelsSub').textContent = `Maks. ${nf0.format(b.max_panels)} ${panelsWord(b.max_panels)}`;
+
   const slider = $('slider');
   slider.max = b.max_panels;
   slider.value = s.panels;
-  sliderText(s.panels);
-  $('pvgisNote').textContent = s.pvgis_kwh_year
-    ? `Dla porównania: PVGIS dla tych samych paneli, bez lokalnych cieni, daje ${nf0.format(s.pvgis_kwh_year)} kWh rocznie.`
+  $('sliderMaxVal').textContent = `${b.max_panels} paneli`;
+  updateSliderDisplay(s.panels);
+
+  $('btnMinus').disabled = s.panels <= 1;
+  $('btnPlus').disabled = s.panels >= b.max_panels;
+
+  $('pvgisNote').innerHTML = s.pvgis_kwh_year
+    ? `<strong>Punkt odniesienia PVGIS:</strong> Ten sam zestaw paneli bez uwzględnienia lokalnych cieni i przeszkód wygenerowałby w tym miejscu ok. <strong>${nf0.format(s.pvgis_kwh_year)} kWh</strong> rocznie.`
     : '';
-  $('layoutNote').textContent = layoutNote(d.layout || { algorithm: 'google' });
-  $('imagery').textContent = `Dach ${nf0.format(b.roof_area_m2)} m², mieści ${nf0.format(b.max_panels)} paneli. Zdjęcie z ${b.imagery_date || '?'}, jakość ${b.imagery_quality}. Kolory na dachu: im jaśniej, tym więcej słońca w roku.`;
+
+  $('layoutNote').innerHTML = layoutNote(d.layout || { algorithm: 'google' });
+  $('imagery').textContent = `Powierzchnia dachu: ${nf0.format(b.roof_area_m2)} m², maksymalna pojemność: ${nf0.format(b.max_panels)} paneli. Zdjęcie lotnicze: ${b.imagery_date || 'brak daty'}, jakość ${b.imagery_quality}.`;
+
+  if ($('qualityText')) {
+    $('qualityText').textContent = `Google Solar 3D (${b.imagery_quality})`;
+  }
+
   showViews(d);
   drawChart(s.monthly_kwh);
   monthNote(s.monthly_source);
+  renderEconomics(s.kwp, s.kwh_year);
 
-  fillTable($('sizes'), ['Moc', 'Panele', 'kWh rocznie', 'kWh z 1 kWp'], d.sizes.map((r) => ({
-    cells: [nf1.format(r.kwp) + ' kWp', nf0.format(r.panels), nf0.format(r.kwh_year), nf0.format(r.kwh_per_kwp)],
-    current: r.panels === s.panels,
-    onClick: () => load({ ...query, panels: r.panels }),
-  })));
+  fillTable($('sizes'), ['Wariant mocy', 'Liczba paneli', 'Produkcja roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)'], d.sizes.map((r) => {
+    const e = calcEconomics(r.kwp, r.kwh_year, retailPrice, feedInPrice, selfConsumption);
+    return {
+      cells: [
+        `${nf1.format(r.kwp)} kWp`,
+        `${nf0.format(r.panels)} szt.`,
+        `${nf0.format(r.kwh_year)} kWh`,
+        `${nf0.format(e.capexGross)} zł / ${nf0.format(e.capexNet)} zł`,
+        `+${nf0.format(e.netSavings)} zł/rok`,
+        e.paybackNet ? `${e.paybackNet} lat` : '–'
+      ],
+      current: r.panels === s.panels,
+      onClick: () => load({ ...query, panels: r.panels }),
+    };
+  }));
 
   const used = new Map(s.per_segment.map((r) => [r.segment, r]));
-  fillTable($('segments'), ['Kierunek', 'Nachylenie', 'Powierzchnia', 'Mieści paneli', 'Wybrane', 'kWh rocznie', 'kWh z 1 kWp', 'PVGIS z 1 kWp'],
+  fillTable($('segments'), ['Kierunek połaci', 'Kąt nachylenia', 'Powierzchnia', 'Mieści paneli', 'Wybrane panele', 'Roczna produkcja', 'Uzysk z 1 kWp', 'PVGIS (1 kWp)'],
     d.segments.filter((r) => r.max_panels > 0).map((r) => {
       const u = used.get(r.segment);
-      return { current: Boolean(u), cells: [FACING[r.facing] || r.facing, nf0.format(r.pitch_deg) + '°', nf0.format(r.area_m2) + ' m²',
-        nf0.format(r.max_panels), u ? nf0.format(u.panels) : '–', u ? nf0.format(u.kwh_year) : '–',
-        u ? nf0.format(u.kwh_per_kwp) : '–', u && u.pvgis_kwh_per_kwp ? nf0.format(u.pvgis_kwh_per_kwp) : '–'] };
+      return {
+        current: Boolean(u),
+        cells: [
+          FACING[r.facing] || r.facing,
+          `${nf0.format(r.pitch_deg)}°`,
+          `${nf0.format(r.area_m2)} m²`,
+          `${nf0.format(r.max_panels)} szt.`,
+          u ? `${nf0.format(u.panels)} szt.` : '–',
+          u ? `${nf0.format(u.kwh_year)} kWh` : '–',
+          u ? `${nf0.format(u.kwh_per_kwp)} kWh` : '–',
+          u && u.pvgis_kwh_per_kwp ? `${nf0.format(u.pvgis_kwh_per_kwp)} kWh` : '–'
+        ]
+      };
     }));
-  $('segNote').textContent = `Panel: ${nf0.format(d.panel.watts)} W, ${String(d.panel.height_m).replace('.', ',')} × ${String(d.panel.width_m).replace('.', ',')} m. Straty systemu: ${nf0.format(d.assumptions.system_loss_pct)}%. „PVGIS z 1 kWp” to niezależny szacunek dla tego samego nachylenia i kierunku, bez lokalnych cieni.`;
+
+  $('segNote').textContent = `Parametry modułu: moc ${nf0.format(d.panel.watts)} W, wymiary ${String(d.panel.height_m).replace('.', ',')} × ${String(d.panel.width_m).replace('.', ',')} m. Przyjęte straty systemowe: ${nf0.format(d.assumptions.system_loss_pct)}%.`;
 }
 
 function layoutParams() {
-  return layout === 'own' ? { layout, margin: $('margin').value } : { layout };
+  const p = {
+    layout,
+    retail_price: retailPrice,
+    feed_in_price: feedInPrice,
+    self_consumption: selfConsumption,
+  };
+  if (layout === 'own' || layout === 'pro') p.margin = $('margin').value;
+  return p;
 }
 
 function showLayouts() {
@@ -349,31 +1761,37 @@ function showLayouts() {
     });
     box.append(b);
   }
-  $('marginBox').hidden = layout !== 'own';
+  $('marginBox').hidden = layout === 'google';
 }
 
-function reload() {   // the same roof and number of panels, after a change of the layout settings
+function reload() {
   if (!query) return;
   load(data && data.roof_available ? { ...query, panels: data.selected.panels } : query);
 }
 
-function panelsWord(n) {   // 1 panel, 2-4 panele, 5+ paneli (12-14 too)
+function panelsWord(n) {
   if (n === 1) return 'panel';
   return n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'panele' : 'paneli';
 }
 
 function layoutNote(l) {
-  if (l.algorithm !== 'own') return 'Panele rozmieścił algorytm Google (Solar API): bez odstępu od krawędzi dachu.';
+  if (l.algorithm === 'google') {
+    return '<strong>Układ referencyjny Google Solar API:</strong> standardowe rozmieszczenie bez zachowania strefy buforowej od krawędzi i przeszkód.';
+  }
   const theirs = l.google_kwh_year != null
-    ? `Układ Google dla tej samej liczby paneli daje ${nf0.format(l.google_kwh_year)} kWh rocznie.`
-    : `Google mieści na tym dachu najwyżej ${nf0.format(l.google_max_panels)} ${panelsWord(l.google_max_panels)}.`;
-  return `Panele rozmieścił nasz algorytm: zostawia ${nf0.format(l.margin_m * 100)} cm od krawędzi, kalenicy `
-    + `i przeszkód (kominy, lukarny, attyki) i zaczyna od najlepiej nasłonecznionych miejsc. ${theirs}`;
+    ? `Dla porównania: standardowy układ Google dałby ${nf0.format(l.google_kwh_year)} kWh/rok.`
+    : `Standardowy układ Google mieści maksymalnie ${nf0.format(l.google_max_panels)} ${panelsWord(l.google_max_panels)}.`;
+  
+  if (l.algorithm === 'pro') {
+    return `<strong>Algorytm Solary PRO (Siatka modułowa):</strong> układa panele w równe, estetyczne matryce prostokątne w kolumnach i rzędach (bez przesunięć cegiełkowych) oraz zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi i kominów. ${theirs}`;
+  }
+  return `<strong>Autorski algorytm Solary Classic:</strong> zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi, kalenic i kominów (wykrywanych na numerycznym modelu wysokości). ${theirs}`;
 }
 
-function sliderText(n) {
+function updateSliderDisplay(n) {
   const w = data.panel.watts;
-  $('sliderLabel').textContent = `Wielkość instalacji: ${nf0.format(n)} × ${nf0.format(w)} W = ${nf1.format(n * w / 1000)} kWp`;
+  $('panelsDisplay').textContent = `${nf0.format(n)} ${panelsWord(n)}`;
+  $('kwpDisplay').textContent = `${nf1.format(n * w / 1000)} kWp`;
 }
 
 function showViews(d) {
@@ -382,35 +1800,49 @@ function showViews(d) {
   if (!d.images[view]) view = 'selected';
   for (const [key, name] of VIEWS) {
     if (!d.images[key]) continue;
-    const b = el('button', name, { class: 'chip', type: 'button', 'aria-pressed': String(key === view) });
+    const b = el('button', name, { class: 'view-btn', type: 'button', 'aria-pressed': String(key === view) });
     b.addEventListener('click', () => { view = key; showViews(data); });
     box.append(b);
   }
   const img = $('img');
   img.hidden = !d.images[view];
-  if (d.images[view]) { img.src = d.images[view]; img.alt = VIEW_ALT[view]; }
+  if (d.images[view]) {
+    img.src = d.images[view];
+    img.alt = VIEW_ALT[view];
+  }
 }
 
 function showGeneric(d) {
   const g = d.generic;
-  $('gKwhYear').textContent = nf0.format(g.kwh_year) + ' kWh';
+  $('gKwhYear').innerHTML = `${nf0.format(g.kwh_year)} <span class="kpi-unit">kWh/rok</span>`;
   $('gKwp').value = g.kwp;
   $('gTilt').value = g.tilt_deg;
   $('gAz').value = String(g.azimuth_deg);
-  $('gNote').textContent = `Uzysk z 1 kWp: ${nf0.format(g.kwh_per_kwp)} kWh rocznie. Szacunek nie uwzględnia cieni drzew i sąsiednich budynków.`;
+  $('gNote').textContent = `Uzysk jednostkowy: ${nf0.format(g.kwh_per_kwp)} kWh/kWp rocznie. Obliczenia na bazie wieloletnich danych radiacyjnych PVGIS.`;
   drawChart(g.monthly_kwh);
   monthNote(g.monthly_source);
-  fillTable($('sizes'), ['Moc', 'kWh rocznie', 'kWh z 1 kWp'], d.sizes.map((r) => ({
-    cells: [nf1.format(r.kwp) + ' kWp', nf0.format(r.kwh_year), nf0.format(r.kwh_per_kwp)],
-    current: Math.abs(r.kwp - g.kwp) < 1e-9,
-    onClick: () => load({ ...query, kwp: r.kwp, tilt: g.tilt_deg, azimuth: g.azimuth_deg }),
-  })));
+  renderEconomics(g.kwp, g.kwh_year);
+
+  fillTable($('sizes'), ['Wariant mocy', 'Prognoza roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)'], d.sizes.map((r) => {
+    const e = calcEconomics(r.kwp, r.kwh_year, retailPrice, feedInPrice, selfConsumption);
+    return {
+      cells: [
+        `${nf1.format(r.kwp)} kWp`,
+        `${nf0.format(r.kwh_year)} kWh`,
+        `${nf0.format(e.capexGross)} zł / ${nf0.format(e.capexNet)} zł`,
+        `+${nf0.format(e.netSavings)} zł/rok`,
+        e.paybackNet ? `${e.paybackNet} lat` : '–'
+      ],
+      current: Math.abs(r.kwp - g.kwp) < 1e-9,
+      onClick: () => load({ ...query, kwp: r.kwp, tilt: g.tilt_deg, azimuth: g.azimuth_deg }),
+    };
+  }));
 }
 
 function monthNote(source) {
   $('monthNote').textContent = source === 'pvgis'
-    ? 'Podział roku na miesiące: PVGIS dla współrzędnych tego dachu.'
-    : 'Podział roku na miesiące: typowy profil dla Polski (PVGIS chwilowo niedostępny).';
+    ? 'Profil godzinowy i miesięczny: PVGIS (JRC Komisja Europejska)'
+    : 'Uśredniony profil nasłonecznienia dla strefy klimatycznej Polski';
 }
 
 function fillTable(table, head, rows) {
@@ -432,7 +1864,7 @@ function fillTable(table, head, rows) {
   }
 }
 
-// ---- monthly bar chart: one series, hairline grid, value on the peak, tooltip on hover and focus
+// Chart rendering
 function niceStep(max) {
   const raw = max / 4, mag = 10 ** Math.floor(Math.log10(raw));
   return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
@@ -445,15 +1877,17 @@ function drawChart(monthly) {
   const NS = 'http://www.w3.org/2000/svg';
   const chart = $('chart'), tip = $('tip');
   lastWidth = Math.round(chart.clientWidth);
-  // drawn 1:1 in CSS pixels at the container's width, so labels stay readable on a phone
-  const W = Math.max(280, Math.round(chart.clientWidth) || 640), H = W < 480 ? 220 : 280;
-  const L = 48, R = 6, T = 44, B = 26;   // the top margin leaves room for the tooltip above the tallest bar
+  const W = Math.max(280, Math.round(chart.clientWidth) || 640), H = W < 480 ? 220 : 260;
+  const L = 48, R = 12, T = 40, B = 28;
+
   chart.querySelector('svg')?.remove();
   tip.style.display = 'none';
+
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'Wykres słupkowy: produkcja energii w kolejnych miesiącach, w kWh');
+  svg.setAttribute('aria-label', 'Wykres słupkowy: prognozowana produkcja energii w miesiącach w kWh');
+
   const add = (tag, attrs, text) => {
     const n = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
@@ -461,27 +1895,42 @@ function drawChart(monthly) {
     svg.append(n);
     return n;
   };
+
   const max = Math.max(...monthly, 1);
   const step = niceStep(max);
   const top = Math.ceil(max / step) * step;
   const y = (v) => T + (H - T - B) * (1 - v / top);
+
   for (let v = 0; v <= top + 1e-9; v += step) {
     add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
     add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, nf0.format(v));
   }
-  const band = (W - L - R) / 12, bw = Math.min(24, Math.max(band - 8, 6));
-  const names = band < 30 ? MONTHS.map((m) => m[0].toUpperCase()) : MONTHS;
+
+  const band = (W - L - R) / 12, bw = Math.min(26, Math.max(band - 8, 8));
+  const names = band < 32 ? MONTHS.map((m) => m[0].toUpperCase()) : MONTHS;
   const peak = monthly.indexOf(Math.max(...monthly));
+  const total = monthly.reduce((a, c) => a + c, 0);
+
   monthly.forEach((v, i) => {
     const cx = L + band * (i + 0.5), yv = y(v), h = Math.max(y(0) - yv, 0), r = Math.min(4, h, bw / 2);
+    const isPeak = i === peak;
     const hit = add('rect', { class: 'hit', x: cx - band / 2, y: T, width: band, height: H - T - B, tabindex: 0,
       'aria-label': `${MONTHS_FULL[i]}: ${nf0.format(v)} kWh` });
-    // rounded data end, square at the baseline
-    add('path', { class: 'bar', d: `M${cx - bw / 2},${y(0)} v${-(h - r)} q0,${-r} ${r},${-r} h${bw - 2 * r} q${r},0 ${r},${r} v${h - r} z` });
+    
+    // Bar geometry with subtle rounded top
+    add('path', {
+      class: isPeak ? 'bar peak' : 'bar',
+      d: `M${cx - bw / 2},${y(0)} v${-(h - r)} q0,${-r} ${r},${-r} h${bw - 2 * r} q${r},0 ${r},${r} v${h - r} z`
+    });
+
     add('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, names[i]);
-    if (i === peak) add('text', { class: 'peak', x: cx, y: yv - 6, 'text-anchor': 'middle' }, nf0.format(v));
+    if (isPeak) {
+      add('text', { class: 'peak', x: cx, y: yv - 6, 'text-anchor': 'middle' }, `${nf0.format(v)} kWh`);
+    }
+
     const showTip = () => {
-      tip.replaceChildren(el('b', nf0.format(v) + ' kWh'), document.createTextNode(' ' + MONTHS_FULL[i]));
+      const share = total > 0 ? ` (${nf0.format(v / total * 100)}% roku)` : '';
+      tip.replaceChildren(el('b', `${nf0.format(v)} kWh`), document.createTextNode(` · ${MONTHS_FULL[i]}${share}`));
       tip.style.display = 'block';
       const half = tip.offsetWidth / 2, scale = chart.clientWidth / W;
       tip.style.left = Math.min(Math.max(cx * scale, half), chart.clientWidth - half) + 'px';
@@ -489,28 +1938,31 @@ function drawChart(monthly) {
       svg.classList.add('hovering');
     };
     const hideTip = () => { tip.style.display = 'none'; svg.classList.remove('hovering'); };
+
     hit.addEventListener('pointerenter', showTip);
     hit.addEventListener('pointerleave', hideTip);
     hit.addEventListener('focus', showTip);
     hit.addEventListener('blur', hideTip);
   });
+
   chart.append(svg);
 
-  const total = monthly.reduce((a, c) => a + c, 0);
-  fillTable($('monthTable'), ['Miesiąc', 'kWh', 'Udział w roku'], monthly.map((v, i) => ({
-    cells: [MONTHS_FULL[i], nf0.format(v), nf0.format(v / total * 100) + '%'],
+  fillTable($('monthTable'), ['Miesiąc', 'Produkcja (kWh)', 'Udział w roku'], monthly.map((v, i) => ({
+    cells: [MONTHS_FULL[i], `${nf0.format(v)} kWh`, `${nf1.format(v / total * 100)}%`],
   })));
 }
 
 let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {   // redraw only when the width really changed (not when a phone hides its address bar)
-    if (lastMonthly && !$('result').hidden && Math.round($('chart').clientWidth) !== lastWidth) drawChart(lastMonthly);
+  resizeTimer = setTimeout(() => {
+    if (lastMonthly && !$('result').hidden && Math.round($('chart').clientWidth) !== lastWidth) {
+      drawChart(lastMonthly);
+    }
   }, 150);
 });
 
-// ---- events
+// Event Handlers
 $('search').addEventListener('submit', (e) => {
   e.preventDefault();
   const address = $('address').value.trim();
@@ -522,22 +1974,124 @@ $('search').addEventListener('submit', (e) => {
   $('result').hidden = true;
   load(query);
 });
+
+// Demo Presets click
+document.querySelectorAll('.preset-btn[data-addr]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const addr = btn.getAttribute('data-addr');
+    $('address').value = addr;
+    data = null;
+    view = 'selected';
+    query = { address: addr };
+    pickedLabel = null;
+    $('result').hidden = true;
+    load(query);
+  });
+});
+
 $('margin').addEventListener('change', reload);
 showLayouts();
-$('slider').addEventListener('input', (e) => sliderText(Number(e.target.value)));
-$('slider').addEventListener('change', (e) => load({ ...query, panels: e.target.value }));
+
+$('slider').addEventListener('input', (e) => {
+  const val = Number(e.target.value);
+  updateSliderDisplay(val);
+  $('btnMinus').disabled = val <= 1;
+  $('btnPlus').disabled = val >= Number($('slider').max);
+  if (data && data.panel && data.selected) {
+    const kwp = val * data.panel.watts / 1000;
+    const kwhYear = kwp * data.selected.kwh_per_kwp;
+    renderEconomics(kwp, kwhYear);
+  }
+});
+
+$('slider').addEventListener('change', (e) => {
+  load({ ...query, panels: e.target.value });
+});
+
+$('btnMinus').addEventListener('click', () => {
+  const sl = $('slider');
+  const current = Number(sl.value);
+  if (current > 1) {
+    sl.value = current - 1;
+    updateSliderDisplay(current - 1);
+    if (data && data.panel && data.selected) {
+      const kwp = (current - 1) * data.panel.watts / 1000;
+      renderEconomics(kwp, kwp * data.selected.kwh_per_kwp);
+    }
+    load({ ...query, panels: current - 1 });
+  }
+});
+
+$('btnPlus').addEventListener('click', () => {
+  const sl = $('slider');
+  const current = Number(sl.value);
+  const max = Number(sl.max);
+  if (current < max) {
+    sl.value = current + 1;
+    updateSliderDisplay(current + 1);
+    if (data && data.panel && data.selected) {
+      const kwp = (current + 1) * data.panel.watts / 1000;
+      renderEconomics(kwp, kwp * data.selected.kwh_per_kwp);
+    }
+    load({ ...query, panels: current + 1 });
+  }
+});
+
 $('gGo').addEventListener('click', () => {
   const kwp = Number($('gKwp').value), tilt = Number($('gTilt').value);
   if (!(kwp > 0) || !(tilt >= 0 && tilt <= 90)) return;
   load({ ...query, kwp, tilt, azimuth: $('gAz').value });
 });
 
+// Economic simulator events
+function onEconomicsInput() {
+  retailPrice = Number($('simRetail').value);
+  feedInPrice = Number($('simFeedIn').value);
+  selfConsumption = Number($('simSelfCons').value);
+
+  $('valRetail').textContent = `${nf1.format(retailPrice)} zł/kWh`;
+  $('valFeedIn').textContent = `${nf1.format(feedInPrice)} zł/kWh`;
+  $('valSelfCons').textContent = `${nf0.format(selfConsumption)}%`;
+
+  if (data) {
+    if (data.roof_available) {
+      showRoof(data);
+    } else {
+      showGeneric(data);
+    }
+  }
+}
+
+$('simRetail').addEventListener('input', onEconomicsInput);
+$('simFeedIn').addEventListener('input', onEconomicsInput);
+$('simSelfCons').addEventListener('input', onEconomicsInput);
+
+$('btnResetEcon').addEventListener('click', () => {
+  $('simRetail').value = 1.10;
+  $('simFeedIn').value = 0.40;
+  $('simSelfCons').value = 25;
+  onEconomicsInput();
+});
+
+$('btnPrint').addEventListener('click', () => {
+  window.print();
+});
+
+// Health Check
 fetch('/api/health').then((r) => r.json()).then((h) => {
-  if (!h.google_key) {
-    $('error').textContent = 'Na serwerze brakuje klucza Google Solar API (plik .env) – wyszukiwanie dachu nie zadziała.';
+  if (h.google_key) {
+    $('apiDot').className = 'status-dot';
+    $('apiStatusText').textContent = 'API aktywne (Google Solar + OSM)';
+  } else {
+    $('apiDot').className = 'status-dot warn';
+    $('apiStatusText').textContent = 'Brak klucza Google Solar API w .env';
+    $('error').textContent = 'Na serwerze nie skonfigurowano klucza GOOGLE_MAPS_API_KEY w pliku .env. Analiza dachu w 3D wymaga aktywnego klucza.';
     $('error').hidden = false;
   }
-}).catch(() => {});
+}).catch(() => {
+  $('apiDot').className = 'status-dot err';
+  $('apiStatusText').textContent = 'Serwer offline';
+});
 </script>
 </body>
 </html>

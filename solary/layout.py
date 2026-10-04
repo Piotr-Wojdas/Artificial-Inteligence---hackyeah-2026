@@ -24,10 +24,12 @@ Google's, so the production estimate, the tables and the images work on it uncha
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import heapq
 import json
 import math
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -56,7 +58,7 @@ class LayoutUnavailable(SolaryError):
 
 def layout_key(cfg: Config = CONFIG) -> str:
     """Short id of the settings that change our layout: part of the cache and image file names."""
-    parts = (VERSION, cfg.layout_margin_m, cfg.layout_gap_m, cfg.layout_height_tol_m, cfg.layout_max_pitch_deg,
+    parts = (VERSION, cfg.layout, cfg.layout_margin_m, cfg.layout_gap_m, cfg.layout_height_tol_m, cfg.layout_max_pitch_deg,
              cfg.layout_compactness, cfg.layout_shift_rows, cfg.panel_size_m)
     return hashlib.sha1(repr(parts).encode()).hexdigest()[:10]
 
@@ -102,12 +104,16 @@ def own_panels(bi: dict, layers: dict[str, Path], cfg: Config = CONFIG) -> list[
         raise LayoutUnavailable("the height map does not match the roof segments")
     kw = google_panel_watts(bi) / 1000    # energy is per Google's wattage; cfg.panel_watts rescales it later
     size = panel_size(bi, cfg)
+
+    # For 'pro' layout, strictly align rows (no staggered brick shift) and use block-filling ordering
+    shift_rows = False if cfg.layout == "pro" else cfg.layout_shift_rows
+    cfg_groups = cfg if shift_rows == cfg.layout_shift_rows else dataclasses.replace(cfg, layout_shift_rows=shift_rows)
     cands: list[dict] = []
-    for members in segment_groups(frames, cfg):
-        cands += _group_candidates(members, frames, owner, data, size, kw, cfg)
+    for members in segment_groups(frames, cfg_groups):
+        cands += _group_candidates(members, frames, owner, data, size, kw, cfg_groups)
     if not cands:
         return []
-    order = _order(cands, cfg.layout_compactness, cfg.layout_gap_m)
+    order = _order_pro(cands) if cfg.layout == "pro" else _order(cands, cfg.layout_compactness, cfg.layout_gap_m)
     lons, lats = warp(data["crs"], "EPSG:4326", [cands[i]["x"] for i in order], [cands[i]["y"] for i in order])
     return [{"center": {"latitude": lat, "longitude": lon},
              "orientation": "PORTRAIT" if cands[i]["portrait"] else "LANDSCAPE",
@@ -482,3 +488,117 @@ def _order(cands: list[dict], compactness: float, gap: float) -> list[int]:
                 heapq.heappush(heap, (-float(energy[j]) * (1 + compactness * touching[j]),
                                       float(((xy[j] - centre) ** 2).sum()), j, touching[j]))
     return out
+
+
+def _order_pro(cands: list[dict]) -> list[int]:
+    """Alternative professional layout ordering:
+    Groups panels by segment and grid coordinates, prioritizing the sunniest
+    facet and expanding as clean, aesthetic rectangular arrays (tables) without
+    irregular jagged teeth or isolated orphan panels.
+    """
+    if not cands:
+        return []
+
+    by_seg = defaultdict(list)
+    for idx, c in enumerate(cands):
+        by_seg[c["segment"]].append(idx)
+
+    # Sort segments by maximum solar yield
+    seg_rank = sorted(by_seg.keys(), key=lambda s: max(cands[i]["energy"] for i in by_seg[s]), reverse=True)
+
+    final_order = []
+
+    for seg in seg_rank:
+        indices = by_seg[seg]
+        if not indices:
+            continue
+
+        seg_cands = [cands[i] for i in indices]
+        all_u = sorted(list(set(round(c["u"], 2) for c in seg_cands)))
+        u_to_col = {u: col for col, u in enumerate(all_u)}
+
+        grid_panels = {}
+        for i_local, c in enumerate(seg_cands):
+            col = u_to_col[round(c["u"], 2)]
+            row = c["row"]
+            grid_panels[(row, col)] = (indices[i_local], c["energy"])
+
+        available = set(grid_panels.keys())
+
+        # Select the best seed: highest local 3x3 density and energy
+        best_seed = None
+        best_seed_score = -1e9
+        for (r, c) in available:
+            neighbors = [(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if (r + dr, c + dc) in available]
+            density = len(neighbors)
+            avg_e = sum(grid_panels[nb][1] for nb in neighbors) / density
+            score = avg_e * 2.0 + density * 50.0
+            if score > best_seed_score:
+                best_seed_score = score
+                best_seed = (r, c)
+
+        chosen_coords = []
+        chosen_set = set()
+
+        chosen_coords.append(best_seed)
+        chosen_set.add(best_seed)
+        available.remove(best_seed)
+
+        while available:
+            best_next = None
+            best_next_score = -1e9
+
+            # Current bounding box
+            curr_rows = [rc[0] for rc in chosen_set]
+            curr_cols = [rc[1] for rc in chosen_set]
+            r_min, r_max = min(curr_rows), max(curr_rows)
+            c_min, c_max = min(curr_cols), max(curr_cols)
+            curr_perimeter = 2 * ((r_max - r_min + 1) + (c_max - c_min + 1))
+
+            for (r, c) in available:
+                cardinal_neighbors = 0
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    if (r + dr, c + dc) in chosen_set:
+                        cardinal_neighbors += 1
+
+                diag_neighbors = 0
+                for dr, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                    if (r + dr, c + dc) in chosen_set:
+                        diag_neighbors += 1
+
+                if cardinal_neighbors == 0 and diag_neighbors == 0:
+                    continue  # must touch existing cluster
+
+                energy = grid_panels[(r, c)][1]
+
+                new_r_min = min(r_min, r)
+                new_r_max = max(r_max, r)
+                new_c_min = min(c_min, c)
+                new_c_max = max(c_max, c)
+                new_perimeter = 2 * ((new_r_max - new_r_min + 1) + (new_c_max - new_c_min + 1))
+                delta_perimeter = new_perimeter - curr_perimeter
+
+                inside_box = (r_min <= r <= r_max) and (c_min <= c <= c_max)
+
+                score = (cardinal_neighbors * 40.0 +
+                         diag_neighbors * 15.0 +
+                         (60.0 if inside_box else 0.0) -
+                         delta_perimeter * 25.0 +
+                         energy / 10.0)
+
+                if score > best_next_score:
+                    best_next_score = score
+                    best_next = (r, c)
+
+            if best_next is None:
+                # Disjoint island: pick the panel with highest energy
+                best_next = max(available, key=lambda rc: grid_panels[rc][1])
+
+            chosen_coords.append(best_next)
+            chosen_set.add(best_next)
+            available.remove(best_next)
+
+        final_order.extend([grid_panels[rc][0] for rc in chosen_coords])
+
+    return final_order
+

@@ -43,8 +43,8 @@ def main() -> int:
     ap.add_argument("--panel-watts", type=float, help="wattage of one panel (default: Google's 400 W)")
     ap.add_argument("--order", choices=("google", "yield"), help="which panels are used first: the layout's own "
                     "order (default, compact arrays) or strictly the highest yield")
-    ap.add_argument("--layout", choices=("google", "own"), help="who places the panels: Google (default) or our "
-                    "algorithm on the roof's height map and solar flux")
+    ap.add_argument("--layout", choices=("google", "own", "pro"), help="who places the panels: Google (default), our "
+                    "classic algorithm (own), or our professional aesthetic matrix algorithm (pro)")
     ap.add_argument("--margin", type=float, help=f"own layout: free roof kept around every panel, in metres "
                     f"(default {CONFIG.layout_margin_m:g})")
     ap.add_argument("--gap", type=float, help=f"own layout: gap between panels, in metres "
