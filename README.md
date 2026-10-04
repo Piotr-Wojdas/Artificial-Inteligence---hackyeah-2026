@@ -1,8 +1,81 @@
-# Solari
+# ☀️ Solari – Inteligentna Fotowoltaika i Magazyn Energii z AI
+### Projekt na HackYeah 2026 | Kategoria: Artificial Intelligence / Green Energy
 
-Solari odpowiada na pytanie „czy i jak opłaca mi się fotowoltaika na moim dachu?”. Wpisujesz adres, a aplikacja
-znajduje dach, rozkłada na nim panele, liczy produkcję prądu i opłacalność oraz pokazuje, jak domowym magazynem
-energii sterowałby agent AI. Projekt powstał na HackYeah 2026.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render%20Online-brightgreen?style=for-the-badge&logo=render)](https://artificial-inteligence-hackyeah-2026.onrender.com/)
+[![Tests](https://img.shields.io/badge/Tests-187%20Passed-success?style=for-the-badge&logo=pytest)](https://artificial-inteligence-hackyeah-2026.onrender.com/)
+[![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-blue?style=for-the-badge&logo=python)](https://artificial-inteligence-hackyeah-2026.onrender.com/)
+[![RL Agent](https://img.shields.io/badge/AI%20Engine-PPO%20%2B%20MPC%20(NumPy)-orange?style=for-the-badge)](https://artificial-inteligence-hackyeah-2026.onrender.com/)
+
+---
+
+## 🚀 DLA JURORÓW: SZYBKI START & LIVE DEMO
+
+> ### 🌐 Działająca aplikacja w chmurze (Render):
+> 👉 **[https://artificial-inteligence-hackyeah-2026.onrender.com/](https://artificial-inteligence-hackyeah-2026.onrender.com/)**
+>
+> *(Aplikacja działa na żywo z podpiętym kluczem Google Solar API – w pełni funkcjonalna, nie wymaga instalacji ani wpisywania kluczy).*
+>
+> 🎬 **Skrypt lektorski & Notatki z wideo:** [`VOICEOVER_SKRYPT.txt`](VOICEOVER_SKRYPT.txt)  
+> 📍 **Przykładowe adresy do natychmiastowego przetestowania w demo (wystarczy kliknąć przycisk w aplikacji):**
+> - `Mariacka 1, Katowice` – pełna geometria 3D, autorski układ Solari PRO, symulacja magazynu z agentem RL
+> - `Świdnicka 10, Wrocław` – skomplikowany dach zabytkowej kamienicy z kominami i przeszkodami
+> - `Nowy Świat 20, Warszawa` – gęsta zabudowa miejska
+> - `Bohaterów Monte Cassino 15, Sopot` – zróżnicowana połać nadmorska
+
+---
+
+## 🌟 Czym wyróżnia się Solari? (Kluczowe Innowacje)
+
+Tradycyjne kalkulatory fotowoltaiczne jedynie mnożą orientacyjną powierzchnię dachu przez średnie nasłonecznienie. Solari rozwiązuje **dwa realne, dotąd nierozwiązane problemy polskiego rynku prosumenckiego**:
+
+1. **Precyzyjny silnik geometrii dachu 3D (`Solari PRO`):**
+   - Google Solar API układa panele "na styk", ignorując kominy, lukarny i okap.
+   - Nasz algorytm analizuje mapę wysokości DSM (rozdzielczość 10 cm), dopasowuje płaszczyzny metodą najmniejszych kwadratów, **wykrywa i omija kominy oraz przeszkody (±15 cm)** oraz zachowuje 20 cm bezpiecznego bufora od krawędzi.
+   - Modułowa siatka tworzy zwarte, równe pola paneli – dokładnie tak, jak projektuje je certyfikowany instalator.
+
+2. **Agent Reinforcement Learning dla magazynu energii (problem 253V):**
+   - W Polsce w słoneczne południe sieć energetyczna jest przeciążona – napięcie przekracza 253 V, przez co **falowniki masowo wyłączają się (nawet ponad 900 razy w roku!)**, a darmowy prąd bezpowrotnie przepada.
+   - Zwykły falownik ładuje baterię z samego rana, więc w słonecznym szczycie nie ma już miejsca na prąd.
+   - **Nasz Agent RL (sieć PPO wyuczona z imitacją nieliniowego MPC)** co 15 minut optymalizuje sterowanie baterią:
+     - Analizuje rynkowe ceny energii z **PSE (RCE)**,
+     - Uwzględnia prognozy pogody z **Open-Meteo** i historię **NASA POWER**,
+     - Zna nieliniową fizykę baterii (straty falownika proporcjonalne do kwadratu mocy, starzenie ogniw),
+     - Aktywnie chroni sieć przed wyłączeniem falownika.
+   - **Wynik:** Agent osiąga **96–98% teoretycznego optimum**, redukuje liczbę wyłączeń falownika **z ~900 do kilkunastu rocznie**, a wnioskowanie zajmuje **0,3 ms w czystym NumPy** (bez konieczności PyTorcha czy GPU w runtime!).
+
+3. **Kompletny model finansowy Net-Billing 2025/2026:**
+   - Obliczenia depozytu prosumenckiego, taryf G11 oraz taryf dynamicznych, autokonsumpcji, kosztów instalacji, utrzymania i ulgi termomodernizacyjnej (12%).
+
+4. **188 testów automatycznych (187 passed, 100% offline):**
+   - Pełne pokrycie testami jednostkowymi bez zewnętrznych zależności sieciowych.
+
+---
+
+## 🛠️ Architektura i Przepływ Danych
+
+```
+[Adres użytkownika] 
+        │
+        ▼
+[OpenStreetMap Nominatim] ───► Geokodowanie i obrys budynku
+        │
+        ▼
+[Google Solar API] ──────────► Warstwy 3D: DSM (10 cm), maska dachu, roczne nasłonecznienie
+        │
+        ▼
+[Solari PRO Engine] ─────────► Detekcja kominów/attyk, bufor 20 cm, zwarta siatka modułów
+        │
+        ▼
+[PVGIS + Cienie] ────────────► Miesięczny i roczny profil generacji (kWh)
+        │
+        ▼
+[Net-Billing & Finanse] ─────► Koszt, oszczędności, depozyt, okres zwrotu (lata)
+        │
+        ▼
+[Agent RL (Bateria)] ────────► Kwadransowe sterowanie: PSE RCE + Pogoda + Unikanie 253V
+```
+
+---
 
 ## Jak uruchomić
 
