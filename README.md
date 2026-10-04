@@ -1,41 +1,138 @@
 # Solari
 
-Wpisujesz adres, a moduł:
+Solari odpowiada na pytanie „czy i jak opłaca mi się fotowoltaika na moim dachu?”. Wpisujesz adres, a aplikacja
+znajduje dach, rozkłada na nim panele, liczy produkcję prądu i opłacalność oraz pokazuje, jak domowym magazynem
+energii sterowałby agent AI. Projekt powstał na HackYeah 2026.
 
-1. znajduje budynek (OpenStreetMap) i jego dach (Google Solar API),
-2. rozmieszcza na dachu panele dla wybranej mocy: według Google albo własnym algorytmem, który zostawia odstęp
-   od krawędzi i omija kominy, i rysuje je na zdjęciu lotniczym,
-3. szacuje, ile prądu te panele wyprodukują w Polsce: rocznie i w każdym miesiącu,
-4. liczy orientacyjną opłacalność: koszt instalacji, roczne oszczędności i okres zwrotu,
-5. steruje domowym magazynem energii: agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, kiedy
-   ładować baterię, kiedy zasilać z niej dom, a kiedy sprzedawać prąd, patrząc na ceny RCE i prognozę pogody.
+## Jak uruchomić
 
-W środku jest biblioteka w Pythonie, polecenie w terminalu, serwer HTTP dla frontendu i gotowa strona demo.
-Folder jest samodzielny: skopiuj jego zawartość do pustego repozytorium.
+Wszystkie polecenia wpisuj w głównym folderze repozytorium, czyli tam, gdzie leży ten plik.
 
-## Szybki start
+### 1. Co trzeba mieć
 
-Potrzebujesz Pythona 3.12+ i [uv](https://docs.astral.sh/uv/).
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/).** Instaluje zależności i w razie potrzeby samego
+  Pythona (projekt wymaga wersji 3.12 lub nowszej).
+  - Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+  - Linux i macOS: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **Klucz Google Maps Platform z włączonym Solar API.** W [Google Cloud Console](https://console.cloud.google.com/)
+  włącz **Solar API** w projekcie z podpiętymi płatnościami i utwórz klucz API. Bez klucza działają testy
+  i polecenie magazynu energii dla podanych współrzędnych, ale nie analiza dachu.
+
+### 2. Instalacja
 
 ```bash
-cp .env.example .env        # wpisz klucz: GOOGLE_MAPS_API_KEY=...
-uv sync                     # instaluje zależności (razem z pytest)
-uv run python -m solary "Mariacka 1, Katowice" --kwp 6     # wynik w terminalu + 3 obrazki w data/roof/
-uv run python -m solary "Mariacka 1, Katowice" --panels 15 --layout own   # panele rozmieszcza nasz algorytm
-uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10   # magazyn: rok + plan na dziś i jutro
-uv run python -m solary.api                                # strona demo: http://127.0.0.1:8000
-uv run pytest                                              # 188 testów, bez internetu
+git clone https://github.com/Piotr-Wojdas/Artificial-Inteligence---hackyeah-2026.git
+cd Artificial-Inteligence---hackyeah-2026
+cp .env.example .env        # w cmd.exe: copy .env.example .env
+uv sync                     # tworzy .venv i instaluje zależności (razem z pytest)
 ```
 
-Klucz: w [Google Cloud Console](https://console.cloud.google.com/) włącz **Solar API** w projekcie z podpiętymi
-płatnościami i utwórz klucz API. Zapytania są płatne według cennika Google Maps Platform, więc sprawdź go przed
-wdrożeniem. Nowy budynek to jedno zapytanie o dach (dwa, gdy nie ma zdjęć wysokiej jakości) i jedno o warstwy mapy plus
-trzy pobrania plików (cztery z własnym układem paneli, który potrzebuje jeszcze mapy wysokości). Kolejne zapytania
-o ten sam budynek idą z dysku przez 30 dni.
+Otwórz plik `.env` i wpisz klucz: `GOOGLE_MAPS_API_KEY=...`. Klucza nie wpisuj do kodu ani do repozytorium;
+plik `.env` jest w `.gitignore`.
 
-Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
+### 3. Strona
 
-## Co jest w folderze
+```bash
+uv run python -m solary.api
+```
+
+Otwórz http://127.0.0.1:8000, wpisz adres (na przykład „Mariacka 1, Katowice”) i kliknij „Analizuj dach”. Serwer
+zatrzymasz przez Ctrl+C. Interaktywna dokumentacja API jest pod http://127.0.0.1:8000/docs.
+
+- Pierwsza analiza nowego adresu trwa kilkanaście sekund, kolejne idą z dysku.
+- Pierwsze przeliczenie magazynu energii trwa od pół minuty do około dwóch, bo pobiera ceny i pogodę z całego roku.
+- Inny port albo dostęp z sieci lokalnej: `uv run python -m solary.api --host 0.0.0.0 --port 8001`.
+
+### 4. Terminal
+
+```bash
+uv run python -m solary "Mariacka 1, Katowice" --kwp 6                  # dach: wynik w terminalu i 3 obrazki w data/roof/
+uv run python -m solary "Mariacka 1, Katowice" --panels 15 --layout pro # panele rozmieszcza nasz algorytm
+uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10   # magazyn: rachunek za rok i plan do końca jutra
+uv run python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6    # magazyn bez analizy dachu (nie wymaga klucza Google)
+```
+
+Wszystkie opcje opisują sekcje [Polecenie w terminalu](#polecenie-w-terminalu) i
+[Magazyn energii sterowany przez AI](#magazyn-energii-sterowany-przez-ai).
+
+### 5. Testy
+
+```bash
+uv run pytest
+```
+
+188 testów, bez internetu i bez klucza Google. Jeden jest pomijany, dopóki nie zainstalujesz grupy `rl` (punkt 7).
+
+### 6. Docker, Render i publiczny adres
+
+```bash
+docker build -t solari .
+docker run --rm -p 8000:8000 -e GOOGLE_MAPS_API_KEY=twoj_klucz solari      # strona: http://127.0.0.1:8000
+```
+
+- **Render.com.** `render.yaml` opisuje usługę `solari` budowaną z `Dockerfile` (plan darmowy, region Frankfurt,
+  kontrola zdrowia pod `/api/health`). Utwórz w Render nowy Blueprint z tego repozytorium i wpisz
+  `GOOGLE_MAPS_API_KEY` w panelu usługi.
+- **Publiczny adres dla lokalnego serwera.** Uruchom serwer (punkt 3), a potem `run_demo_tunnel.bat`. Skrypt
+  wymaga programu [cloudflared](https://github.com/cloudflare/cloudflared/releases)
+  (`cloudflared.exe` w tym folderze albo w PATH) i wypisuje tymczasowy adres HTTPS prowadzący do portu 8000.
+
+### 7. Nauka i ocena agenta (opcjonalnie)
+
+Nauczony agent jest w repozytorium (`solary/battery/policy.npz`), więc do uruchomienia aplikacji ten krok nie jest
+potrzebny.
+
+```bash
+uv run python -m solary.battery evaluate     # wszystkie strategie na roku testowym -> solary/battery/evaluation.json
+uv sync --group rl                           # torch, gymnasium i stable-baselines3: tylko do nauki
+uv run python -m solary.battery train        # nauka agenta od nowa -> solary/battery/policy.npz
+```
+
+### Gdy coś nie działa
+
+| Objaw | Co zrobić |
+|---|---|
+| `ModuleNotFoundError: No module named 'solary'` | uruchamiasz z innego folderu: przejdź do głównego folderu repozytorium |
+| strona pokazuje „Brak klucza Google Solar API”, API zwraca 503 | brakuje `GOOGLE_MAPS_API_KEY` w `.env` albo serwer startował przed jego wpisaniem: uruchom go ponownie |
+| „Nie znaleziono takiego adresu” (404) | dopisz miasto i numer domu; wyszukiwanie obejmuje tylko Polskę |
+| „Google Solar API nie posiada danych” | Google zna w Polsce głównie większe miasta; aplikacja pokazuje wtedy szacunek z PVGIS bez układu paneli |
+| błąd 502 | nie odpowiada usługa zewnętrzna (Google, OpenStreetMap, PSE, NASA POWER albo Open-Meteo): spróbuj za chwilę |
+| port 8000 jest zajęty | dodaj `--port 8001` |
+
+## Co robi Solari
+
+1. Znajduje budynek (OpenStreetMap) i jego dach (Google Solar API).
+2. Rozmieszcza na dachu panele dla wybranej mocy: według Google albo własnym algorytmem, który zostawia odstęp
+   od krawędzi i omija kominy, i rysuje je na zdjęciu lotniczym.
+3. Szacuje, ile prądu te panele wyprodukują: rocznie i w każdym miesiącu.
+4. Liczy orientacyjną opłacalność: koszt instalacji, roczne oszczędności i okres zwrotu.
+5. Steruje domowym magazynem energii: agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, kiedy
+   ładować baterię, kiedy zasilać z niej dom, a kiedy sprzedawać prąd, patrząc na ceny RCE i prognozę pogody.
+
+Z tych samych funkcji korzystają trzy wejścia: strona w przeglądarce, polecenia w terminalu i biblioteka w Pythonie.
+
+**Koszt zapytań do Google.** Zapytania są płatne według cennika Google Maps Platform, więc sprawdź go przed
+wdrożeniem. Nowy budynek to jedno zapytanie o dach (dwa, gdy nie ma zdjęć wysokiej jakości) i jedno o warstwy mapy
+plus trzy pobrania plików (cztery z własnym układem paneli, który potrzebuje jeszcze mapy wysokości). Kolejne
+zapytania o ten sam budynek idą z dysku przez 30 dni.
+
+## Jak zbudowane jest repozytorium
+
+Analiza dachu to jeden ciąg kroków, który spina funkcja `analyze()` w `solary/service.py`:
+
+```text
+adres -> geocode.py -> solar_api.py -> layout.py* -> panels.py -> production.py -> economics.py
+         (adres na     (dach i warstwy  (własny       (wybór N     (kWh rocznie     (koszt, zwrot)
+          współrzędne)  mapy z Google)   układ)        paneli)      i miesięcznie)
+                             |
+                             +-> render.py (obrazki PNG dachu)
+
+* tylko dla layout="own" i "pro"; przy "google" lista paneli pochodzi wprost z Google.
+```
+
+`analyze()` wołają `solary/__main__.py` (terminal) i `solary/api.py` (serwer HTTP), a serwer podaje stronę
+`web/index.html`. Magazyn energii to osobny pakiet `solary/battery/`: bierze z analizy dachu moc, nachylenie
+i kierunek paneli, a ceny i pogodę pobiera sam.
 
 | Ścieżka | Zawartość |
 |---|---|
@@ -47,15 +144,34 @@ Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
 | `solary/production.py` | szacunek produkcji: rocznie, miesięcznie, PVGIS |
 | `solary/economics.py` | opłacalność: koszt instalacji, oszczędności, okres zwrotu |
 | `solary/render.py` | obrazki PNG: „czy to Twój dom?” i układ paneli |
-| `solary/service.py` | `analyze()`: cała funkcja w jednym wywołaniu |
+| `solary/service.py` | `analyze()`: cała analiza dachu w jednym wywołaniu |
 | `solary/__main__.py` | polecenie `python -m solary` |
-| `solary/api.py` | serwer FastAPI + strona demo |
-| `solary/battery/` | magazyn energii: dane (ceny, pogoda), symulator, strategie, agent RL, plan na dziś i jutro |
+| `solary/api.py` | serwer FastAPI: końcówki `/api/...` i strona demo |
 | `solary/env.py`, `solary/errors.py` | wczytywanie `.env`, klasa błędów |
+| `solary/battery/` | magazyn energii, opis plików niżej |
 | `web/index.html` | strona demo (czysty HTML i JavaScript, bez budowania) |
-| `tests/` | testy bez dostępu do sieci |
+| `tests/` | testy bez dostępu do sieci; `tests/roofs.py` buduje sztuczne dachy |
+| `pyproject.toml`, `uv.lock` | zależności; grupa `dev` to testy, grupa `rl` to nauka agenta |
+| `.env.example` | wzór pliku `.env` z kluczem i opcjonalnymi ustawieniami |
+| `Dockerfile`, `.dockerignore` | obraz z serwerem (bez testów i bez `.env`) |
+| `render.yaml` | wdrożenie na Render.com |
+| `run_demo_tunnel.bat` | publiczny adres HTTPS dla lokalnego serwera (cloudflared) |
+| `data/` | cache, powstaje przy pierwszym uruchomieniu i nie trafia do repozytorium: dane Google w `data/roof/`, ceny i pogoda w `data/battery/` |
 
-## Jak to działa
+Pakiet `solary/battery/`:
+
+| Plik | Zawartość |
+|---|---|
+| `data.py` | ceny RCE (PSE), pogoda (NASA POWER, Open-Meteo), produkcja paneli, profil zużycia domu |
+| `model.py` | fizyka baterii, falownika i sieci, taryfy, prognozy, obserwacja agenta |
+| `strategies.py` | sterowania do porównania: bez magazynu, zwykły falownik, MPC liniowe i nieliniowe, optimum |
+| `policy.py`, `policy.npz` | nauczony agent: sieć neuronowa liczona w numpy i jej wagi |
+| `plan.py` | rachunek za rok i plan od teraz do końca jutra (`battery_report()`) |
+| `evaluate.py`, `evaluation.json` | ocena wszystkich strategii na roku testowym i jej wynik |
+| `env.py`, `train.py` | środowisko i nauka agenta (imitacja + PPO); wymagają grupy `rl` |
+| `__main__.py` | polecenie `python -m solary.battery` |
+
+## Jak działa analiza dachu
 
 1. **Adres.** Nominatim szuka adresu tylko w Polsce. Przedrostek „ul.” jest usuwany, bo z nim Nominatim nic nie
    znajduje. Jeśli tekst pasuje do kilku miejsc, pierwsze idzie do analizy, a pozostałe wracają w polu
@@ -77,7 +193,7 @@ Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
 Gdy Google nie ma danych o dachu, wynik ma `"roof_available": false` i szacunek z samego PVGIS dla podanej mocy,
 nachylenia i kierunku (domyślnie 35° na południe), bez rozmieszczenia paneli.
 
-### Własny układ paneli (`layout="own"`)
+### Własny układ paneli (`layout="own"` i `"pro"`)
 
 Google podaje gotową listę paneli, ale według własnych, nieopublikowanych reguł: panel 400 W, zero odstępu od
 krawędzi, kalenicy i kominów. `solary/layout.py` rozmieszcza panele sam, na warstwach mapy z Solar API (maska dachu,
@@ -112,6 +228,23 @@ Wariant `layout="pro"` (na stronie „Solari PRO”) używa tej samej wolnej pow
 bez przesuwania rzędów o pół panelu, a kolejność dobiera tak, żeby panele tworzyły równe prostokątne pola: zaczyna
 od najlepszej połaci i dokłada panel, który najmniej powiększa obrys pola.
 
+### Opłacalność
+
+`solary/economics.py` liczy prosty, orientacyjny raport dla wybranej mocy i jej rocznej produkcji:
+
+- **Koszt instalacji** (z montażem, 8% VAT) zależy od mocy: do 4 kWp 4 800 zł za kWp, do 7 kWp 4 200 zł, do 12 kWp
+  3 700 zł, do 20 kWp 3 300 zł, powyżej 3 000 zł. Ulgę termomodernizacyjną liczymy jako 12% tego kosztu.
+- **Roczne oszczędności.** Część produkcji zużywana na bieżąco (domyślnie 25%) jest warta cenę prądu z sieci
+  (1,10 zł/kWh), a reszta cenę sprzedaży nadwyżek (0,40 zł/kWh). Od sumy odejmujemy koszty utrzymania: 0,8% kosztu
+  instalacji rocznie, co najmniej 150 zł.
+- **Okres zwrotu** to koszt instalacji (z ulgą i bez) podzielony przez roczne oszczędności po kosztach utrzymania.
+- **Zysk po 25 latach** sumuje oszczędności malejące o 0,5% rocznie (starzenie paneli) i odejmuje koszt instalacji
+  bez ulgi.
+
+Ceny i autokonsumpcję zmienia się suwakami na stronie albo parametrami `retail_price`, `feed_in_price`
+i `self_consumption`. To prostszy model niż rachunek w części o magazynie energii, więc liczb z obu części nie da
+się ze sobą porównać.
+
 ### Przykładowe wyniki (3.10.2026)
 
 | Adres | Układ | Produkcja | Z 1 kWp | PVGIS dla tej orientacji |
@@ -132,12 +265,34 @@ sprzedawaj z baterii z mocą 25, 50 lub 100%. Decyzję podejmuje **agent nauczon
 uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10 --annual-kwh 4000 --tariff g11
 uv run python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tariff dynamic --export-limit 3
 uv run python -m solary.battery evaluate        # wszystkie strategie na roku testowym -> solary/battery/evaluation.json
-uv sync --group rl && uv run python -m solary.battery train   # nauka agenta od nowa (torch, ok. 40 min na 4 rdzeniach)
+uv sync --group rl                              # torch i reszta pakietów do nauki
+uv run python -m solary.battery train           # nauka agenta od nowa (ok. 40 min na 4 rdzeniach)
 ```
 
 Wynik `plan`: rachunek za rok testowy bez magazynu, ze zwykłym falownikiem, z agentem i w optimum oraz plan od teraz
 do końca jutra (co robi bateria w każdym kwadransie). `--export-limit 3` oznacza słabą sieć, w której falownik
 wyłącza się, gdy oddaje ponad 3 kW. Na stronie demo to sekcja „Magazyn energii” pod wynikiem dachu.
+
+Opcje `python -m solary.battery plan`:
+
+| Opcja | Domyślnie | Opis |
+|---|---|---|
+| `address` | – | adres: panele pochodzą wtedy z analizy dachu |
+| `--lat`, `--lon` | – | współrzędne zamiast adresu |
+| `--panels` | – | liczba paneli w analizie dachu |
+| `--layout` | `google` | układ paneli w analizie dachu: `google` albo `own` |
+| `--kwp`, `--tilt`, `--azimuth` | 6, 35, 180 | instalacja, gdy nie ma danych o dachu albo podano same współrzędne |
+| `--battery-kwh` | 10 | pojemność baterii |
+| `--battery-kw` | połowa pojemności na godzinę | moc baterii |
+| `--annual-kwh` | 4000 | roczne zużycie domu |
+| `--tariff` | `g11` | `g11` albo `dynamic` |
+| `--soc` | 0,5 | naładowanie baterii teraz (0–1) |
+| `--export-limit` | – | słaba sieć: falownik wyłącza się powyżej tylu kW oddawanych do sieci |
+| `--no-plan` | – | tylko rachunek za rok, bez planu |
+| `--json` | – | pełny wynik jako JSON |
+
+`evaluate --no-mpc` pomija oba MPC (najwolniejsze, kilka minut na dom). `train` przyjmuje `--steps` (domyślnie
+3 000 000 kroków PPO), `--imitation-weeks` (800), `--envs` (8), `--seed` (0) i `--out` (plik z agentem).
 
 ### Fizyka: dlaczego to nie jest zadanie liniowe
 
@@ -319,9 +474,29 @@ from solary import analyze
 
 res = analyze(address="Mariacka 1, Katowice", kwp=6)
 if res["roof_available"]:
-    print(res["selected"]["kwh_year"], res["selected"]["monthly_kwh"])
+    chosen = res["selected"]
+    print(chosen["kwh_year"], chosen["monthly_kwh"], chosen["economics"]["payback_with_relief_years"])
 else:
     print(res["generic"]["kwh_year"])
+```
+
+Własny układ paneli i inne założenia ustawia się przez `Config`:
+
+```python
+import dataclasses
+from solary import CONFIG, analyze
+
+res = analyze(address="Mariacka 1, Katowice", panels=20, cfg=dataclasses.replace(CONFIG, layout="pro"))
+```
+
+Magazyn energii dla domu z instalacją 6 kWp, 35° na południe:
+
+```python
+from solary.battery.model import Battery
+from solary.battery.plan import battery_report
+
+report = battery_report(50.26, 19.02, [(6.0, 35, 180)], annual_kwh=4000, battery=Battery(10, 5))
+print(report["year"]["rows"], report["plan"]["now"])
 ```
 
 Błędy przeznaczone dla użytkownika dziedziczą po `solary.errors.SolaryError`
