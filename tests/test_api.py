@@ -51,13 +51,42 @@ def test_roof_with_our_layout(client, monkeypatch):
     client.get("/api/roof", params={"address": "Mariacka 1, Katowice", "layout": "own", "margin": 0.5})
     assert seen["cfg"].layout == "own" and seen["cfg"].layout_margin_m == 0.5
     assert seen["cfg"].data_dir == api.CONFIG.data_dir             # everything else as configured
+    client.get("/api/roof", params={"address": "x", "layout": "pro", "gap": 0.05, "order": "yield", "panel_watts": 550,
+                                    "panel_height": 2.278, "panel_width": 1.134})
+    cfg = seen["cfg"]
+    assert (cfg.layout, cfg.layout_gap_m, cfg.panel_order, cfg.panel_watts) == ("pro", 0.05, "yield", 550.0)
+    assert cfg.panel_size_m == (2.278, 1.134) and cfg.layout_margin_m == api.CONFIG.layout_margin_m
+
+
+def test_economics_for_other_sizes_and_prices(client):
+    r = client.get("/api/economics", params={"sizes": "6:5729,3.2:3060", "retail_price": 1.5, "self_consumption": 40})
+    rows = r.json()["rows"]
+    assert r.status_code == 200 and [(row["kwp"], row["kwh_year"]) for row in rows] == [(6.0, 5729.0), (3.2, 3060.0)]
+    assert rows[0]["economics"] == api.estimate_economics(6, 5729, retail_price_pln=1.5, self_consumption_pct=40)
+    default = client.get("/api/economics", params={"sizes": "6:5729"}).json()["rows"][0]["economics"]
+    assert default == api.estimate_economics(6, 5729)              # the module's own default prices
+    for bad in ({}, {"sizes": "6"}, {"sizes": "6:5729:1"}, {"sizes": "0:100"}, {"sizes": "6:x"},
+                {"sizes": "6:5729", "retail_price": 0}, {"sizes": "6:5729", "self_consumption": 101}):
+        assert client.get("/api/economics", params=bad).status_code in (400, 422), bad
+
+
+def test_battery_evaluation_report(client, monkeypatch, tmp_path):
+    from solary.battery import evaluate
+
+    report = client.get("/api/battery/evaluation").json()          # the report that ships with the agent
+    assert {"test_period", "location", "houses"} <= set(report)
+    assert {"no_battery", "agent", "optimum"} <= {row["strategy"] for row in report["houses"][0]["rows"]}
+    monkeypatch.setattr(evaluate, "REPORT_PATH", tmp_path / "missing.json")
+    assert client.get("/api/battery/evaluation").status_code == 404
 
 
 @pytest.mark.parametrize("params", [{}, {"lat": 52}, {"address": "  "}, {"lat": 100, "lon": 19},
                                     {"lat": 52, "lon": 19, "kwp": 0}, {"lat": 52, "lon": 19, "panels": 0},
                                     {"lat": 52, "lon": 19, "tilt": 91}, {"address": "x" * 301},
                                     {"address": "x", "layout": "magic"}, {"address": "x", "margin": -1},
-                                    {"address": "x", "margin": 3}])
+                                    {"address": "x", "margin": 3}, {"address": "x", "gap": 1},
+                                    {"address": "x", "order": "random"}, {"address": "x", "panel_watts": 5},
+                                    {"address": "x", "panel_height": 2.0}])
 def test_bad_requests(client, monkeypatch, params):
     monkeypatch.setattr(api, "analyze", lambda **k: pytest.fail("must not be called"))
     assert client.get("/api/roof", params=params).status_code in (400, 422)
@@ -92,4 +121,4 @@ def test_images_are_served_only_from_the_cache_folder(client, monkeypatch, tmp_p
 def test_demo_page(client):
     r = client.get("/")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
-    assert "Solary" in r.text and "/api/roof" in r.text
+    assert "Solari" in r.text and "Solary" not in r.text and "/api/roof" in r.text

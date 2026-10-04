@@ -51,7 +51,7 @@ def _get_json(url: str, params: dict | None = None, timeout: float = 60, attempt
     for attempt in range(attempts):              # free APIs drop a connection now and then
         try:
             r = requests.get(url, params=params, timeout=timeout,
-                             headers={"User-Agent": "solary-battery/0.1 (HackYeah 2026)"})
+                             headers={"User-Agent": "solari-battery/0.1 (HackYeah 2026)"})
             break
         except requests.RequestException as e:
             if attempt == attempts - 1:

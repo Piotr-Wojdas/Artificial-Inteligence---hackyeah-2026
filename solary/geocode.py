@@ -40,7 +40,7 @@ class GeocodingError(SolaryError):
 
 def user_agent() -> str:
     """Nominatim wants to know who is calling: set SOLARY_USER_AGENT (app name + contact)."""
-    return os.environ.get("SOLARY_USER_AGENT", "solary/0.1 (rooftop PV estimator)")
+    return os.environ.get("SOLARY_USER_AGENT", "solari/0.1 (rooftop PV estimator)")
 
 
 def normalise(address: str) -> str:

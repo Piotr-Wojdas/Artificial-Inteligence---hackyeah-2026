@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solary – inteligentne rozmieszczenie paneli fotowoltaicznych</title>
+<title>Solari – inteligentne rozmieszczenie paneli fotowoltaicznych</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23eab308'><circle cx='12' cy='12' r='5'/><path stroke='%23eab308' stroke-width='2' stroke-linecap='round' d='M12 1v3m0 16v3M1 12h3m16 0h3m-3.3-7.7-2.1 2.1m-9.2 9.2-2.1 2.1m0-13.4 2.1 2.1m9.2 9.2 2.1 2.1'/></svg>">
 <style>
   :root {
@@ -320,6 +320,7 @@
   .margin-select-wrap {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     font-size: 13px;
     color: var(--text-muted);
@@ -1141,7 +1142,7 @@
   <div class="nav-inner">
     <a href="/" class="brand">
       <div class="brand-icon">S</div>
-      <span class="brand-title">Solary</span>
+      <span class="brand-title">Solari</span>
       <span class="brand-badge">HackYeah Live Demo</span>
     </a>
     <div class="nav-status">
@@ -1194,6 +1195,25 @@
           <option value="0.2" selected>20 cm (zalecany)</option>
           <option value="0.3">30 cm</option>
           <option value="0.5">50 cm</option>
+        </select>
+        <span>Szczelina między panelami:</span>
+        <select id="gap" aria-label="Szczelina między panelami">
+          <option value="0">0 cm</option>
+          <option value="0.02" selected>2 cm (klemy)</option>
+          <option value="0.05">5 cm</option>
+        </select>
+        <span>Panel:</span>
+        <select id="panelType" aria-label="Moc i wymiary panelu">
+          <option value="" selected>400 W · 1,88 × 1,05 m</option>
+          <option value="450:1.762:1.134">450 W · 1,76 × 1,13 m</option>
+          <option value="550:2.278:1.134">550 W · 2,28 × 1,13 m</option>
+        </select>
+      </div>
+      <div class="margin-select-wrap" id="orderBox">
+        <span>Kolejność paneli:</span>
+        <select id="order" aria-label="Kolejność wybierania paneli">
+          <option value="google" selected>zwarte pola</option>
+          <option value="yield">ściśle od najwyższego uzysku</option>
         </select>
       </div>
     </div>
@@ -1508,6 +1528,10 @@
             <select id="bKwh"><option value="5">5 kWh</option><option value="10" selected>10 kWh</option><option value="15">15 kWh</option><option value="20">20 kWh</option></select>
           </div>
           <div class="input-group">
+            <label for="bKw">Moc baterii</label>
+            <select id="bKw"><option value="" selected>pół pojemności na godzinę</option><option value="3">3 kW</option><option value="5">5 kW</option><option value="10">10 kW</option></select>
+          </div>
+          <div class="input-group">
             <label for="bUse">Zużycie rocznie (kWh)</label>
             <input type="number" id="bUse" value="4000" min="500" max="50000" step="100" style="width:110px">
           </div>
@@ -1535,6 +1559,7 @@
         <div id="bError" class="notice err" role="alert" hidden></div>
         <div id="bResult" style="display:flex; flex-direction:column; gap:14px" hidden>
           <p class="battery-now" id="bNow"></p>
+          <p class="battery-note" id="bPlanMoney"></p>
           <div class="legend" id="bLegend"></div>
           <div class="chart plan" id="bChart"><div class="tip wide" id="bTip"></div></div>
           <details>
@@ -1544,14 +1569,20 @@
           <h3 class="section-title" style="margin:6px 0 0;">Rachunek za rok z magazynem</h3>
           <div class="table-scroll"><table id="bYear"></table></div>
           <p class="battery-note" id="bNote"></p>
+          <p class="battery-note" id="bAgent"></p>
         </div>
+        <details id="bEvalBox">
+          <summary>Jak agent wypada na tle innych strategii (domy referencyjne)</summary>
+          <div class="table-scroll" style="margin-top:10px;"><table id="bEval"></table></div>
+          <p class="battery-note" id="bEvalNote" style="margin-top:10px;"></p>
+        </details>
       </section>
 
       <!-- Attribution Footer -->
       <footer>
         <p id="attribution"></p>
         <div class="footer-links">
-          <span>Projekt Solary – HackYeah 2026</span>
+          <span>Projekt Solari – HackYeah 2026</span>
           <span>Google Solar API</span>
           <span>OpenStreetMap</span>
           <span>PVGIS Unia Europejska</span>
@@ -1565,7 +1596,8 @@
 const $ = (id) => document.getElementById(id);
 const nf0 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const MONTHS = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+const nf2 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MONTHS =['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 const MONTHS_FULL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
 const FACING = { N: 'północ', NE: 'płn.-wsch.', E: 'wschód', SE: 'płd.-wsch.', S: 'południe', SW: 'płd.-zach.', W: 'zachód', NW: 'płn.-zach.' };
 
@@ -1578,8 +1610,8 @@ const WARNINGS = {
 };
 
 const LAYOUTS = [
-  ['pro', 'Solary PRO (Siatka modułowa)'],
-  ['own', 'Solary Classic (Swobodny)'],
+  ['pro', 'Solari PRO (Siatka modułowa)'],
+  ['own', 'Solari Classic (Swobodny)'],
   ['google', 'Google Solar']
 ];
 const REASONS = {
@@ -1604,78 +1636,56 @@ let retailPrice = 1.10;
 let feedInPrice = 0.40;
 let selfConsumption = 25.0;
 
-function estimateCapex(kwp) {
-  let rate = 4800;
-  if (kwp <= 4.0) rate = 4800;
-  else if (kwp <= 7.0) rate = 4200;
-  else if (kwp <= 12.0) rate = 3700;
-  else if (kwp <= 20.0) rate = 3300;
-  else rate = 3000;
-  return Math.round(kwp * rate);
+// ---- profitability: the server computes it (solary/economics.py), the page only shows it
+const zl = (v) => `${v < 0 ? '−' : '+'}${nf0.format(Math.abs(v))} zł`;
+const years = (v) => (v == null ? '–' : `${nf1.format(v)} lat`);
+let econRequest = 0;
+
+function priceParams() {
+  return { retail_price: retailPrice, feed_in_price: feedInPrice, self_consumption: selfConsumption };
 }
 
-function calcEconomics(kwp, kwhYear, retPrice = retailPrice, feedPrice = feedInPrice, selfCons = selfConsumption) {
-  kwp = Math.max(0.1, Number(kwp) || 0.1);
-  kwhYear = Math.max(0, Number(kwhYear) || 0);
-  retPrice = Math.max(0, Number(retPrice) || 0);
-  feedPrice = Math.max(0, Number(feedPrice) || 0);
-  selfCons = Math.min(100, Math.max(0, Number(selfCons) || 0));
+// `e` is an "economics" object of the API; `kwhYear` the production it was computed for
+function renderEconomics(e, kwhYear) {
+  $('econCapexGross').textContent = `${nf0.format(e.capex_gross_pln)} zł`;
+  $('econCapexNet').textContent = `${nf0.format(e.capex_net_pln)} zł z ulgą PIT (12%)`;
 
-  const capexGross = estimateCapex(kwp);
-  const pitRelief = Math.round(capexGross * 0.12);
-  const capexNet = capexGross - pitRelief;
-  const opex = Math.round(Math.max(150, capexGross * 0.008));
+  $('econNetSavings').textContent = `${zl(e.net_savings_annual_pln)}/rok`;
+  $('econGrossSavings').textContent = `${nf0.format(e.gross_savings_annual_pln)} zł przed OPEX`;
 
-  const selfRatio = selfCons / 100;
-  const selfKwh = kwhYear * selfRatio;
-  const exportKwh = kwhYear * (1 - selfRatio);
+  $('econPaybackNet').textContent = years(e.payback_with_relief_years);
+  $('econPaybackGross').textContent = e.payback_years == null ? '–' : `${years(e.payback_years)} bez ulgi`;
 
-  const selfSavings = Math.round(selfKwh * retPrice);
-  const exportIncome = Math.round(exportKwh * feedPrice);
-  const grossSavings = selfSavings + exportIncome;
-  const netSavings = grossSavings - opex;
-
-  const paybackGross = netSavings > 0 ? (capexGross / netSavings).toFixed(1) : null;
-  const paybackNet = netSavings > 0 ? (capexNet / netSavings).toFixed(1) : null;
-
-  let total25y = 0;
-  for (let yr = 0; yr < 25; yr++) {
-    total25y += netSavings * (1 - 0.005 * yr);
-  }
-  const profit25y = Math.round(total25y - capexGross);
-
-  return {
-    capexGross, pitRelief, capexNet, opex,
-    selfCons, selfKwh, exportKwh,
-    selfSavings, exportIncome, grossSavings, netSavings,
-    paybackGross, paybackNet, profit25y,
-    retailPrice: retPrice, feedInPrice: feedPrice
-  };
-}
-
-function renderEconomics(kwp, kwhYear) {
-  const econ = calcEconomics(kwp, kwhYear, retailPrice, feedInPrice, selfConsumption);
-
-  $('econCapexGross').textContent = `${nf0.format(econ.capexGross)} zł`;
-  $('econCapexNet').textContent = `${nf0.format(econ.capexNet)} zł z ulgą PIT (12%)`;
-
-  $('econNetSavings').textContent = `+${nf0.format(econ.netSavings)} zł/rok`;
-  $('econGrossSavings').textContent = `${nf0.format(econ.grossSavings)} zł przed OPEX`;
-
-  $('econPaybackNet').textContent = econ.paybackNet ? `${econ.paybackNet} lat` : '–';
-  $('econPaybackGross').textContent = econ.paybackGross ? `${econ.paybackGross} lat bez ulgi` : '–';
-
-  $('econProfit25y').textContent = `+${nf0.format(econ.profit25y)} zł`;
+  $('econProfit25y').textContent = zl(e.profit_25y_pln);
 
   $('econGenSub').textContent = `${nf0.format(kwhYear)} kWh / rok`;
-  $('econSelfKwhSub').textContent = `${nf0.format(econ.selfKwh)} kWh (${nf0.format(econ.selfCons)}%) zużyte na bieżąco (uniknięty zakup po ${nf1.format(econ.retailPrice)} zł/kWh)`;
-  $('econSelfSavings').textContent = `+${nf0.format(econ.selfSavings)} zł/rok`;
+  $('econSelfKwhSub').textContent = `${nf0.format(e.self_kwh)} kWh (${nf0.format(e.self_consumption_pct)}%) zużyte na bieżąco (uniknięty zakup po ${nf2.format(e.retail_price_pln)} zł/kWh)`;
+  $('econSelfSavings').textContent = `${zl(e.self_savings_pln)}/rok`;
 
-  $('econExportKwhSub').textContent = `${nf0.format(econ.exportKwh)} kWh (${nf0.format(100 - econ.selfCons)}%) oddane do sieci (odkup po ${nf1.format(econ.feedInPrice)} zł/kWh)`;
-  $('econExportIncome').textContent = `+${nf0.format(econ.exportIncome)} zł/rok`;
+  $('econExportKwhSub').textContent = `${nf0.format(e.export_kwh)} kWh (${nf0.format(100 - e.self_consumption_pct)}%) oddane do sieci (odkup po ${nf2.format(e.feed_in_price_pln)} zł/kWh)`;
+  $('econExportIncome').textContent = `${zl(e.export_income_pln)}/rok`;
 
-  $('econOpex').textContent = `−${nf0.format(econ.opex)} zł/rok`;
-  $('econNetTotal').textContent = `+${nf0.format(econ.netSavings)} zł/rok`;
+  $('econOpex').textContent = `−${nf0.format(e.annual_opex_pln)} zł/rok`;
+  $('econNetTotal').textContent = `${zl(e.net_savings_annual_pln)}/rok`;
+}
+
+// the same figures for other sizes ([kWp, kWh a year] pairs) or prices, without analysing the roof again
+async function fetchEconomics(sizes) {
+  const r = await fetch('/api/economics?' + new URLSearchParams({
+    sizes: sizes.map(([kwp, kwh]) => `${+kwp.toFixed(3)}:${+kwh.toFixed(1)}`).join(','), ...priceParams() }));
+  if (!r.ok) throw new Error('economics');
+  return (await r.json()).rows.map((row) => row.economics);
+}
+
+// while the panel slider moves: the report for that size, before the roof is analysed again
+async function previewEconomics(panels) {
+  if (!data || !data.roof_available) return;
+  const kwp = panels * data.panel.watts / 1000, kwhYear = kwp * data.selected.kwh_per_kwp;
+  const mine = ++econRequest;
+  try {
+    const [e] = await fetchEconomics([[kwp, kwhYear]]);
+    if (mine === econRequest) renderEconomics(e, kwhYear);
+  } catch (e) { /* a preview only: the full result follows when the slider is released */ }
 }
 
 function el(tag, text, attrs = {}) {
@@ -1719,6 +1729,7 @@ async function load(params) {
 
 function show() {
   const d = data;
+  econRequest++;   // a fresh analysis overrides any profitability preview still on its way
   $('result').hidden = false;
   $('label').textContent = d.address_label || pickedLabel || `${d.query.lat.toFixed(5)}, ${d.query.lon.toFixed(5)}`;
 
@@ -1747,8 +1758,7 @@ function show() {
   $('generic').hidden = d.roof_available;
   $('segCard').hidden = !d.roof_available;
   
-  $('batteryCard').hidden = !d.roof_available;
-  if (!d.roof_available) battery = null;
+  $('batteryCard').hidden = false;
   if (battery && battery.key !== batteryKey()) { $('bResult').hidden = true; battery = null; }
 
   if (d.roof_available) {
@@ -1785,7 +1795,8 @@ function showRoof(d) {
     : '';
 
   $('layoutNote').innerHTML = layoutNote(d.layout || { algorithm: 'google' });
-  $('imagery').textContent = `Powierzchnia dachu: ${nf0.format(b.roof_area_m2)} m², maksymalna pojemność: ${nf0.format(b.max_panels)} paneli. Zdjęcie lotnicze: ${b.imagery_date || 'brak daty'}, jakość ${b.imagery_quality}.`;
+  $('imagery').textContent = `Powierzchnia dachu: ${nf0.format(b.roof_area_m2)} m², maksymalna pojemność: ${nf0.format(b.max_panels)} paneli. Zdjęcie lotnicze: ${b.imagery_date || 'brak daty'}, jakość ${b.imagery_quality}.`
+    + (b.distance_m >= 1 ? ` Budynek leży ${nf0.format(b.distance_m)} m od wskazanego punktu.` : '');
 
   if ($('qualityText')) {
     $('qualityText').textContent = `Google Solar 3D (${b.imagery_quality})`;
@@ -1794,23 +1805,8 @@ function showRoof(d) {
   showViews(d);
   drawChart(s.monthly_kwh);
   monthNote(s.monthly_source);
-  renderEconomics(s.kwp, s.kwh_year);
-
-  fillTable($('sizes'), ['Wariant mocy', 'Liczba paneli', 'Produkcja roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)'], d.sizes.map((r) => {
-    const e = calcEconomics(r.kwp, r.kwh_year, retailPrice, feedInPrice, selfConsumption);
-    return {
-      cells: [
-        `${nf1.format(r.kwp)} kWp`,
-        `${nf0.format(r.panels)} szt.`,
-        `${nf0.format(r.kwh_year)} kWh`,
-        `${nf0.format(e.capexGross)} zł / ${nf0.format(e.capexNet)} zł`,
-        `+${nf0.format(e.netSavings)} zł/rok`,
-        e.paybackNet ? `${e.paybackNet} lat` : '–'
-      ],
-      current: r.panels === s.panels,
-      onClick: () => load({ ...query, panels: r.panels }),
-    };
-  }));
+  renderEconomics(s.economics, s.kwh_year);
+  showSizes(d);
 
   const used = new Map(s.per_segment.map((r) => [r.segment, r]));
   fillTable($('segments'), ['Kierunek połaci', 'Kąt nachylenia', 'Powierzchnia', 'Mieści paneli', 'Wybrane panele', 'Roczna produkcja', 'Uzysk z 1 kWp', 'PVGIS (1 kWp)'],
@@ -1834,14 +1830,38 @@ function showRoof(d) {
   $('segNote').textContent = `Parametry modułu: moc ${nf0.format(d.panel.watts)} W, wymiary ${String(d.panel.height_m).replace('.', ',')} × ${String(d.panel.width_m).replace('.', ',')} m. Przyjęte straty systemowe: ${nf0.format(d.assumptions.system_loss_pct)}%.`;
 }
 
+// the table of standard sizes, with the server's profitability of each (roof found or not)
+function showSizes(d) {
+  const roof = d.roof_available;
+  const head = roof
+    ? ['Wariant mocy', 'Liczba paneli', 'Produkcja roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)']
+    : ['Wariant mocy', 'Prognoza roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)'];
+  fillTable($('sizes'), head, d.sizes.map((r) => {
+    const e = r.economics, g = d.generic;
+    return {
+      cells: [
+        `${nf1.format(r.kwp)} kWp`,
+        ...(roof ? [`${nf0.format(r.panels)} szt.`] : []),
+        `${nf0.format(r.kwh_year)} kWh`,
+        `${nf0.format(e.capex_gross_pln)} zł / ${nf0.format(e.capex_net_pln)} zł`,
+        `${zl(e.net_savings_annual_pln)}/rok`,
+        years(e.payback_with_relief_years)
+      ],
+      current: roof ? r.panels === d.selected.panels : Math.abs(r.kwp - g.kwp) < 1e-9,
+      onClick: () => load(roof ? { ...query, panels: r.panels } : { ...query, kwp: r.kwp, tilt: g.tilt_deg, azimuth: g.azimuth_deg }),
+    };
+  }));
+}
+
+// everything the roof request depends on besides the place and the number of panels
 function layoutParams() {
-  const p = {
-    layout,
-    retail_price: retailPrice,
-    feed_in_price: feedInPrice,
-    self_consumption: selfConsumption,
-  };
-  if (layout === 'own' || layout === 'pro') p.margin = $('margin').value;
+  const p = { layout, ...priceParams() };
+  if (layout === 'own' || layout === 'pro') {
+    p.margin = $('margin').value;
+    p.gap = $('gap').value;
+    if ($('panelType').value) [p.panel_watts, p.panel_height, p.panel_width] = $('panelType').value.split(':');
+  }
+  if (layout !== 'pro') p.order = $('order').value;   // PRO's own order is what makes its arrays rectangular
   return p;
 }
 
@@ -1859,6 +1879,7 @@ function showLayouts() {
     box.append(b);
   }
   $('marginBox').hidden = layout === 'google';
+  $('orderBox').hidden = layout === 'pro';
 }
 
 function reload() {
@@ -1879,10 +1900,11 @@ function layoutNote(l) {
     ? `Dla porównania: standardowy układ Google dałby ${nf0.format(l.google_kwh_year)} kWh/rok.`
     : `Standardowy układ Google mieści maksymalnie ${nf0.format(l.google_max_panels)} ${panelsWord(l.google_max_panels)}.`;
   
+  const gap = `Szczelina między panelami: ${nf0.format(l.gap_m * 100)} cm.`;
   if (l.algorithm === 'pro') {
-    return `<strong>Algorytm Solary PRO (Siatka modułowa):</strong> układa panele w równe, estetyczne matryce prostokątne w kolumnach i rzędach (bez przesunięć cegiełkowych) oraz zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi i kominów. ${theirs}`;
+    return `<strong>Algorytm Solari PRO (Siatka modułowa):</strong> układa panele w równe, estetyczne matryce prostokątne w kolumnach i rzędach (bez przesunięć cegiełkowych) oraz zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi i kominów. ${gap} ${theirs}`;
   }
-  return `<strong>Autorski algorytm Solary Classic:</strong> zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi, kalenic i kominów (wykrywanych na numerycznym modelu wysokości). ${theirs}`;
+  return `<strong>Autorski algorytm Solari Classic:</strong> zachowuje <strong>${nf0.format(l.margin_m * 100)} cm</strong> odstępu od krawędzi, kalenic i kominów (wykrywanych na numerycznym modelu wysokości). ${gap} ${theirs}`;
 }
 
 function updateSliderDisplay(n) {
@@ -1918,22 +1940,8 @@ function showGeneric(d) {
   $('gNote').textContent = `Uzysk jednostkowy: ${nf0.format(g.kwh_per_kwp)} kWh/kWp rocznie. Obliczenia na bazie wieloletnich danych radiacyjnych PVGIS.`;
   drawChart(g.monthly_kwh);
   monthNote(g.monthly_source);
-  renderEconomics(g.kwp, g.kwh_year);
-
-  fillTable($('sizes'), ['Wariant mocy', 'Prognoza roczna', 'Koszt montażu (brutto / PIT)', 'Roczny zysk', 'Zwrot (ROI)'], d.sizes.map((r) => {
-    const e = calcEconomics(r.kwp, r.kwh_year, retailPrice, feedInPrice, selfConsumption);
-    return {
-      cells: [
-        `${nf1.format(r.kwp)} kWp`,
-        `${nf0.format(r.kwh_year)} kWh`,
-        `${nf0.format(e.capexGross)} zł / ${nf0.format(e.capexNet)} zł`,
-        `+${nf0.format(e.netSavings)} zł/rok`,
-        e.paybackNet ? `${e.paybackNet} lat` : '–'
-      ],
-      current: Math.abs(r.kwp - g.kwp) < 1e-9,
-      onClick: () => load({ ...query, kwp: r.kwp, tilt: g.tilt_deg, azimuth: g.azimuth_deg }),
-    };
-  }));
+  renderEconomics(g.economics, g.kwh_year);
+  showSizes(d);
 }
 
 function monthNote(source) {
@@ -2052,23 +2060,38 @@ function drawChart(monthly) {
 // ---- battery: yearly bills and the agent's plan for today and tomorrow
 const STRATEGY = { no_battery: 'Bez magazynu', rule: 'Zwykły falownik (autokonsumpcja)', agent: 'Agent AI (uczenie ze wzmocnieniem)',
   lp_mpc: 'Planowanie liniowe (MPC)', dp_mpc: 'Planowanie nieliniowe (MPC)', optimum: 'Optimum, gdyby znać przyszłość' };
-let battery = null, batteryRequest = 0;
+const STRATEGY_SHORT = { no_battery: 'Bez magazynu', rule: 'Zwykły falownik', agent: 'Agent AI', lp_mpc: 'MPC liniowe',
+  dp_mpc: 'MPC nieliniowe', optimum: 'Optimum' };
+let battery = null, batteryRequest = 0, evaluation = null;
+
+// the PV the battery works with: the chosen panels on each roof segment, or the assumed plane where there is no roof data
+function batteryHouse() {
+  const d = data;
+  if (!d) return null;
+  if (d.roof_available) {
+    return { lat: d.building.lat, lon: d.building.lon, kwh_year: d.selected.kwh_year,
+      planes: d.selected.per_segment.map((r) => [r.kwp, r.pitch_deg, r.azimuth_deg]) };
+  }
+  const g = d.generic;
+  return { lat: d.query.lat, lon: d.query.lon, kwh_year: g.kwh_year, planes: [[g.kwp, g.tilt_deg, g.azimuth_deg]] };
+}
 
 function batteryKey() {
-  const d = data;
-  return d && d.roof_available ? `${d.building.lat},${d.building.lon},${d.selected.panels}` : '';
+  const house = batteryHouse();
+  return house ? JSON.stringify(house) : '';
 }
 
 async function loadBattery() {
-  const d = data;
-  if (!d || !d.roof_available) return;
+  const house = batteryHouse();
+  if (!house) return;
   const mine = ++batteryRequest;
   const params = {
-    lat: d.building.lat, lon: d.building.lon,
-    planes: d.selected.per_segment.map((r) => `${r.kwp}:${r.pitch_deg}:${r.azimuth_deg}`).join(','),
-    kwh_year: d.selected.kwh_year, battery_kwh: $('bKwh').value, annual_kwh: $('bUse').value,
+    lat: house.lat, lon: house.lon,
+    planes: house.planes.map(([kwp, tilt, az]) => `${+kwp.toFixed(3)}:${+tilt.toFixed(1)}:${+az.toFixed(1)}`).join(','),
+    kwh_year: +house.kwh_year.toFixed(1), battery_kwh: $('bKwh').value, annual_kwh: $('bUse').value,
     tariff: $('bTariff').value, soc: $('bSoc').value,
   };
+  if ($('bKw').value) params.battery_kw = $('bKw').value;
   if ($('bGrid').value) params.export_limit = $('bGrid').value;
   $('bBusy').hidden = false; $('bError').hidden = true; $('bGo').disabled = true;
   try {
@@ -2100,15 +2123,25 @@ function showBattery(b) {
       `. Ceny opublikowane do ${plan.prices_until ? dayLabel(plan.prices_until) + ', ' + hhmm(plan.prices_until) : '–'}; dalej agent zakłada ceny jak dzień wcześniej.`
       + (b.house.grid.export_limit_kw ? ` Wyłączenia falownika w planie: ${plan.trips} (zwykły falownik: ${plan.rule_trips}).` : ''));
   }
+  $('bPlanMoney').textContent = plan && plan.steps.length
+    ? `Plan do końca jutra: ${nf2.format(plan.cost_zl)} zł (prąd kupiony ${nf2.format(plan.buy_zl)} zł, sprzedany ${nf2.format(plan.sell_zl)} zł, zużycie baterii ${nf2.format(plan.wear_zl)} zł). `
+      + `Zwykły falownik w tym samym czasie: ${nf2.format(plan.rule_cost_zl)} zł. Kwota ujemna oznacza zarobek.`
+    : '';
   if (plan) drawPlan(plan.steps);
 
   const base = y.rows.find((r) => r.strategy === 'no_battery');
-  fillTable($('bYear'), ['Sterowanie', 'Rachunek za rok', 'Oszczędność', 'Z możliwej oszczędności', 'Wyłączenia falownika'], y.rows.map((r) => ({
+  fillTable($('bYear'), ['Sterowanie', 'Rachunek za rok', 'Oszczędność', 'Z możliwej oszczędności', 'Z sieci / do sieci', 'Zużycie baterii', 'Wyłączenia falownika'], y.rows.map((r) => ({
     cells: [STRATEGY[r.strategy] || r.strategy, nf0.format(r.bill_zl) + ' zł', r === base ? '–' : nf0.format(r.savings_zl) + ' zł',
       r.share_of_optimum == null || r === base ? '–' : nf0.format(r.share_of_optimum * 100) + '%',
+      `${nf0.format(r.import_kwh)} / ${nf0.format(r.export_kwh)} kWh`, r === base ? '–' : nf0.format(r.wear_zl) + ' zł',
       r.trips ? `${nf0.format(r.trips)} (${nf0.format(r.lost_pv_kwh)} kWh straty)` : '0'],
     current: r.strategy === 'agent',
   })));
+  const a = b.agent;
+  $('bAgent').textContent = a
+    ? `Agent: sieć neuronowa nauczona ${a.trained_at} na cenach i pogodzie z okresu ${a.train[0]} – ${a.train[1]} (${a.locations.join(', ')}). `
+      + `Najpierw naśladowała planistę przez ${nf0.format(a.imitation_weeks)} tygodni symulacji, potem uczyła się sama metodą PPO przez ${nf0.format(a.steps)} kroków.`
+    : 'Na serwerze nie ma nauczonego agenta (policy.npz): plan i rachunki pokazują zwykły falownik.';
   $('bNote').textContent = `Rok testowy ${y.period[0]} – ${y.period[1]}: prawdziwe ceny RCE i pogoda dla tego miejsca; agent nie widział tego roku podczas nauki. `
     + `Produkcja ${nf0.format(y.pv_kwh)} kWh, zużycie typowego domu ${nf0.format(y.load_kwh)} kWh. Rachunek wg net-billingu: oddany prąd trafia do depozytu, który pokrywa część „energia” rachunku; nadwyżkę po roku sprzedawca zwraca najwyżej w 30%. Rachunek obejmuje straty falownika i zużycie baterii. `
     + `Ceny założone dla 2026 r. (G11 ${String(b.house.tariff.g11_energy_zl_kwh + b.house.tariff.distribution_zl_kwh).replace('.', ',')} zł/kWh z dystrybucją) – porównaj ze swoim rachunkiem. ${b.attribution}`;
@@ -2186,8 +2219,10 @@ function drawPlan(steps) {
     const s = steps[i];
     cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
     tip.replaceChildren(el('b', `${dayLabel(s.time)}, ${hhmm(s.time)}`), el('br'), s.effect_label, el('br'),
+      `Decyzja: ${s.action_label}`, el('br'),
       `Cena ${s.rce_zl_kwh == null ? '– (jak wczoraj)' : nf1.format(s.rce_zl_kwh * 100) + ' gr/kWh'}`, el('br'),
       `PV ${nf1.format(s.pv_kwh * 4)} kW, dom ${nf1.format(s.load_kwh * 4)} kW`, el('br'),
+      `Sieć: pobór ${nf1.format(s.import_kwh * 4)} kW, oddawanie ${nf1.format(s.export_kwh * 4)} kW`, el('br'),
       `Bateria ${nf0.format(s.soc * 100)}%`);
     tip.style.display = 'block';
     const scale = chart.clientWidth / W, half = tip.offsetWidth / 2;
@@ -2218,9 +2253,35 @@ function drawPlan(steps) {
     const h = steps.slice(i, i + 4), prices = h.map((s) => s.rce_zl_kwh).filter((v) => v != null);
     rows.push({ cells: [`${dayLabel(h[0].time)} ${hhmm(h[0].time)}`, prices.length ? nf1.format(prices.reduce((a, c) => a + c, 0) / prices.length * 100) : '–',
       nf1.format(h.reduce((a, s) => a + s.pv_kwh, 0)), nf1.format(h.reduce((a, s) => a + s.load_kwh, 0)),
+      nf1.format(h.reduce((a, s) => a + s.import_kwh, 0)), nf1.format(h.reduce((a, s) => a + s.export_kwh, 0)),
       nf0.format(h[h.length - 1].soc * 100) + '%', h[0].effect_label] });
   }
-  fillTable($('bPlanTable'), ['Godzina', 'Cena gr/kWh', 'PV kWh', 'Dom kWh', 'Bateria', 'Decyzja'], rows);
+  fillTable($('bPlanTable'), ['Godzina', 'Cena gr/kWh', 'PV kWh', 'Dom kWh', 'Z sieci kWh', 'Do sieci kWh', 'Bateria', 'Decyzja'], rows);
+}
+
+// the agent against every other strategy on the reference houses (python -m solary.battery evaluate)
+async function showEvaluation() {
+  if (evaluation) return;
+  try {
+    const r = await fetch('/api/battery/evaluation');
+    if (!r.ok) throw new Error(r.status);
+    evaluation = await r.json();
+  } catch (e) {
+    $('bEvalNote').textContent = 'Raport z oceny agenta nie jest dostępny na serwerze.';
+    return;
+  }
+  const names = Object.keys(STRATEGY_SHORT).filter((s) => evaluation.houses.some((h) => h.rows.some((r) => r.strategy === s)));
+  fillTable($('bEval'), ['Dom', ...names.map((s) => STRATEGY_SHORT[s])], evaluation.houses.map((h) => ({
+    cells: [`${h.name}, ${nf0.format(h.annual_kwh)} kWh/rok`, ...names.map((s) => {
+      const r = h.rows.find((row) => row.strategy === s);
+      if (!r) return '–';
+      const share = r.share_of_optimum && s !== 'optimum' ? ` (${nf0.format(r.share_of_optimum * 100)}%)` : '';
+      return `${nf0.format(r.bill_zl)} zł${share}` + (h.grid.export_limit_kw ? `, ${nf0.format(r.trips)} wył.` : '');
+    })],
+  })));
+  $('bEvalNote').textContent = `Rachunek za rok testowy ${evaluation.test_period[0]} – ${evaluation.test_period[1]} (${evaluation.location}), którego agent nie widział podczas nauki. `
+    + 'W nawiasie: jaką część możliwej oszczędności daje strategia (optimum = 100%). „wył.” to wyłączenia falownika przez napięcie sieci. '
+    + 'MPC to planowanie co godzinę na 36 godzin naprzód: liniowe jak w sterownikach przemysłowych, nieliniowe z dokładną fizyką baterii.';
 }
 
 let resizeTimer = null;
@@ -2261,8 +2322,9 @@ document.querySelectorAll('.preset-btn[data-addr]').forEach((btn) => {
   });
 });
 
-$('margin').addEventListener('change', reload);
+for (const id of ['margin', 'gap', 'panelType', 'order']) $(id).addEventListener('change', reload);
 $('bGo').addEventListener('click', loadBattery);
+$('bEvalBox').addEventListener('toggle', () => { if ($('bEvalBox').open) showEvaluation(); });
 showLayouts();
 
 $('slider').addEventListener('input', (e) => {
@@ -2270,11 +2332,7 @@ $('slider').addEventListener('input', (e) => {
   updateSliderDisplay(val);
   $('btnMinus').disabled = val <= 1;
   $('btnPlus').disabled = val >= Number($('slider').max);
-  if (data && data.panel && data.selected) {
-    const kwp = val * data.panel.watts / 1000;
-    const kwhYear = kwp * data.selected.kwh_per_kwp;
-    renderEconomics(kwp, kwhYear);
-  }
+  previewEconomics(val);
 });
 
 $('slider').addEventListener('change', (e) => {
@@ -2287,10 +2345,6 @@ $('btnMinus').addEventListener('click', () => {
   if (current > 1) {
     sl.value = current - 1;
     updateSliderDisplay(current - 1);
-    if (data && data.panel && data.selected) {
-      const kwp = (current - 1) * data.panel.watts / 1000;
-      renderEconomics(kwp, kwp * data.selected.kwh_per_kwp);
-    }
     load({ ...query, panels: current - 1 });
   }
 });
@@ -2302,10 +2356,6 @@ $('btnPlus').addEventListener('click', () => {
   if (current < max) {
     sl.value = current + 1;
     updateSliderDisplay(current + 1);
-    if (data && data.panel && data.selected) {
-      const kwp = (current + 1) * data.panel.watts / 1000;
-      renderEconomics(kwp, kwp * data.selected.kwh_per_kwp);
-    }
     load({ ...query, panels: current + 1 });
   }
 });
@@ -2317,21 +2367,30 @@ $('gGo').addEventListener('click', () => {
 });
 
 // Economic simulator events
-function onEconomicsInput() {
+async function onEconomicsInput() {
   retailPrice = Number($('simRetail').value);
   feedInPrice = Number($('simFeedIn').value);
   selfConsumption = Number($('simSelfCons').value);
 
-  $('valRetail').textContent = `${nf1.format(retailPrice)} zł/kWh`;
-  $('valFeedIn').textContent = `${nf1.format(feedInPrice)} zł/kWh`;
+  $('valRetail').textContent = `${nf2.format(retailPrice)} zł/kWh`;
+  $('valFeedIn').textContent = `${nf2.format(feedInPrice)} zł/kWh`;
   $('valSelfCons').textContent = `${nf0.format(selfConsumption)}%`;
 
-  if (data) {
-    if (data.roof_available) {
-      showRoof(data);
-    } else {
-      showGeneric(data);
-    }
+  if (!data) return;
+  // the server recomputes the report and the size table for the new prices; the roof stays as it is
+  const d = data, head = d.roof_available ? d.selected : d.generic;
+  const mine = ++econRequest;
+  try {
+    const rows = await fetchEconomics([[head.kwp, head.kwh_year], ...d.sizes.map((r) => [r.kwp, r.kwh_year])]);
+    if (mine !== econRequest || d !== data) return;
+    head.economics = rows[0];
+    d.sizes.forEach((r, i) => { r.economics = rows[i + 1]; });
+    renderEconomics(head.economics, head.kwh_year);
+    showSizes(d);
+  } catch (e) {
+    if (mine !== econRequest) return;
+    $('error').textContent = 'Nie udało się przeliczyć opłacalności: serwer nie odpowiada.';
+    $('error').hidden = false;
   }
 }
 

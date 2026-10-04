@@ -58,7 +58,7 @@ def test_geocode_returns_the_best_match(cfg, nominatim):
     sent = calls[0]
     assert sent["params"]["q"] == "Mariacka 1, Katowice"
     assert sent["params"]["countrycodes"] == "pl" and sent["params"]["format"] == "jsonv2"
-    assert sent["headers"]["User-Agent"].startswith("solary") and sent["headers"]["Accept-Language"] == "pl"
+    assert sent["headers"]["User-Agent"].startswith("solari") and sent["headers"]["Accept-Language"] == "pl"
 
 
 def test_street_only_match_is_flagged(cfg, nominatim):

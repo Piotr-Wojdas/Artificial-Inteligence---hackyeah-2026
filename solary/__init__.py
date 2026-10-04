@@ -1,4 +1,4 @@
-"""solary - panel layout on a real roof found by address, with a production estimate for Poland.
+"""Solari - panel layout on a real roof found by address, with a production estimate for Poland.
 
     from solary import analyze
     result = analyze(address="Mariacka 1, Katowice", kwp=6)

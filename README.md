@@ -1,4 +1,4 @@
-# Solary
+# Solari
 
 Wpisujesz adres, a moduł:
 
@@ -6,7 +6,8 @@ Wpisujesz adres, a moduł:
 2. rozmieszcza na dachu panele dla wybranej mocy: według Google albo własnym algorytmem, który zostawia odstęp
    od krawędzi i omija kominy, i rysuje je na zdjęciu lotniczym,
 3. szacuje, ile prądu te panele wyprodukują w Polsce: rocznie i w każdym miesiącu,
-4. steruje domowym magazynem energii: agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, kiedy
+4. liczy orientacyjną opłacalność: koszt instalacji, roczne oszczędności i okres zwrotu,
+5. steruje domowym magazynem energii: agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, kiedy
    ładować baterię, kiedy zasilać z niej dom, a kiedy sprzedawać prąd, patrząc na ceny RCE i prognozę pogody.
 
 W środku jest biblioteka w Pythonie, polecenie w terminalu, serwer HTTP dla frontendu i gotowa strona demo.
@@ -23,7 +24,7 @@ uv run python -m solary "Mariacka 1, Katowice" --kwp 6     # wynik w terminalu +
 uv run python -m solary "Mariacka 1, Katowice" --panels 15 --layout own   # panele rozmieszcza nasz algorytm
 uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10   # magazyn: rok + plan na dziś i jutro
 uv run python -m solary.api                                # strona demo: http://127.0.0.1:8000
-uv run pytest                                              # 182 testy, bez internetu
+uv run pytest                                              # 188 testów, bez internetu
 ```
 
 Klucz: w [Google Cloud Console](https://console.cloud.google.com/) włącz **Solar API** w projekcie z podpiętymi
@@ -42,8 +43,9 @@ Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
 | `solary/geocode.py` | adres → współrzędne (OpenStreetMap Nominatim) |
 | `solary/solar_api.py` | klient Google Solar API, cache, usuwanie danych po 30 dniach |
 | `solary/panels.py` | połacie dachu i wybór paneli dla zadanej mocy |
-| `solary/layout.py` | własny algorytm rozmieszczania paneli na dachu |
+| `solary/layout.py` | własne algorytmy rozmieszczania paneli na dachu (`own` i `pro`) |
 | `solary/production.py` | szacunek produkcji: rocznie, miesięcznie, PVGIS |
+| `solary/economics.py` | opłacalność: koszt instalacji, oszczędności, okres zwrotu |
 | `solary/render.py` | obrazki PNG: „czy to Twój dom?” i układ paneli |
 | `solary/service.py` | `analyze()`: cała funkcja w jednym wywołaniu |
 | `solary/__main__.py` | polecenie `python -m solary` |
@@ -64,7 +66,7 @@ Klucza nie wpisuj do kodu ani do repozytorium. Plik `.env` jest w `.gitignore`.
 3. **Układ paneli.** Domyślnie dla N paneli bierzemy pierwsze N z listy Google. To kolejność ich algorytmu
    układania, więc panele tworzą zwarte pola. Alternatywa `panel_order="yield"` bierze panele ściśle od
    najlepszego: daje 0–1% więcej energii, ale panele są porozrzucane. Zamiast układu Google można użyć
-   własnego (`layout="own"`, opis niżej). Strona demo używa go domyślnie.
+   własnego (`layout="own"` albo `"pro"`, opis niżej). Strona demo domyślnie używa `pro`.
 4. **Produkcja roczna.** Suma rocznej energii DC wybranych paneli × (1 − straty systemu 14%).
 5. **Miesiące.** Roczną produkcję każdej połaci dzielimy profilem miesięcznym z PVGIS, policzonym dla
    współrzędnych tego dachu oraz nachylenia i kierunku tej połaci. Ten sam wynik PVGIS daje niezależny szacunek
@@ -105,6 +107,10 @@ się pobrać, wynik pokazuje układ Google z ostrzeżeniem `layout_fallback`.
 
 Algorytm to przeszukiwanie z twardymi ograniczeniami geometrycznymi, a nie model uczony na danych: problem jest
 mały, a wynik da się sprawdzić. Działa tylko tam, gdzie Google ma dane o dachu, bo korzysta z jego warstw mapy.
+
+Wariant `layout="pro"` (na stronie „Solari PRO”) używa tej samej wolnej powierzchni i tych samych kandydatów, ale
+bez przesuwania rzędów o pół panelu, a kolejność dobiera tak, żeby panele tworzyły równe prostokątne pola: zaczyna
+od najlepszej połaci i dokłada panel, który najmniej powiększa obrys pola.
 
 ### Przykładowe wyniki (3.10.2026)
 
@@ -259,7 +265,7 @@ Wszystkie są w `solary/config.py`. API zwraca je w polu `assumptions`.
 | `system_loss_pct` | 14 | straty od paneli do gniazdka: falownik, kable, zabrudzenie (domyślna wartość PVGIS) |
 | `panel_watts` | brak, czyli 400 W | panel, który układa Google: 400 W, 1,879 × 1,045 m. Inna moc przelicza moc i energię proporcjonalnie; ma sens tylko dla paneli o podobnych wymiarach |
 | `panel_order` | `google` | kolejność wybierania paneli (`google` albo `yield`) |
-| `layout` | `google` (zmienna `SOLARY_LAYOUT`) | kto rozmieszcza panele: `google` albo `own` (nasz algorytm) |
+| `layout` | `google` (zmienna `SOLARY_LAYOUT`) | kto rozmieszcza panele: `google`, `own` albo `pro` (nasze algorytmy) |
 | `layout_margin_m` | 0,2 | własny układ: wolny pas wokół panelu od krawędzi, kalenicy i przeszkód |
 | `layout_gap_m` | 0,02 | własny układ: szczelina między panelami (klemy) |
 | `layout_height_tol_m` | 0,15 | piksel dalej od płaszczyzny połaci to przeszkoda |
@@ -297,7 +303,7 @@ uv run python -m solary "Mariacka 1, Katowice" --layout own --panel-size 2.278 1
 | `--panels` | – | liczba paneli zamiast mocy |
 | `--panel-watts` | 400 | moc jednego panelu |
 | `--order` | `google` | `google` (kolejność układu) albo `yield` |
-| `--layout` | `google` | kto rozmieszcza panele: `google` albo `own` |
+| `--layout` | `google` | kto rozmieszcza panele: `google`, `own` albo `pro` |
 | `--margin` | 0,2 | własny układ: odstęp od krawędzi i przeszkód w metrach |
 | `--gap` | 0,02 | własny układ: szczelina między panelami w metrach |
 | `--panel-size` | 1,879 1,045 | własny układ: wysokość i szerokość panelu w metrach |
@@ -336,11 +342,22 @@ uv run python -m solary.api --host 127.0.0.1 --port 8000
 | `GET /api/roof?lat=…&lon=…&panels=15` | to samo dla współrzędnych i liczby paneli |
 | `GET /api/roof?address=…&layout=own&margin=0.2` | panele rozmieszcza nasz algorytm |
 | `GET /api/roof/image/{nazwa}` | obrazek PNG z pola `images` |
+| `GET /api/economics?sizes=6:5729,3.2:3060` | opłacalność instalacji podanych jako `kWp:kWh rocznie` |
 | `GET /api/battery?lat=…&lon=…&planes=6:35:180&battery_kwh=10&annual_kwh=4000&tariff=g11&soc=0.5` | magazyn: rachunek za rok i plan od teraz do końca jutra |
+| `GET /api/battery/evaluation` | wszystkie strategie na roku testowym dla domów referencyjnych (`solary/battery/evaluation.json`) |
 
 Parametry `/api/roof`: `address` albo `lat` + `lon`; `kwp` albo `panels`; `images=false` wyłącza obrazki;
-`tilt` i `azimuth` działają tylko w szacunku bez danych dachu; `layout` (`google` albo `own`) wybiera, kto
-rozmieszcza panele, a `margin` (0–2 m) to odstęp od krawędzi we własnym układzie.
+`tilt` i `azimuth` działają tylko w szacunku bez danych dachu; `layout` (`google`, `own` albo `pro`) wybiera, kto
+rozmieszcza panele. We własnych układach `margin` (0–2 m) to odstęp od krawędzi, `gap` (0–0,5 m) szczelina między
+panelami, a `panel_height` i `panel_width` (podawane razem) wymiary panelu. `panel_watts` to moc jednego panelu,
+`order=yield` bierze panele ściśle od najlepszego. `retail_price` (cena prądu z sieci, domyślnie 1,10 zł/kWh),
+`feed_in_price` (cena sprzedaży nadwyżek, 0,40 zł/kWh) i `self_consumption` (procent energii zużywanej na bieżąco,
+25) ustawiają opłacalność; te same trzy parametry przyjmuje `/api/economics`.
+
+Parametry `/api/battery`: `lat`, `lon`; `planes` (`kWp:nachylenie:azymut`, kilka po przecinku); `kwh_year` skaluje
+produkcję do wyniku analizy dachu; `battery_kwh` i `battery_kw` (domyślnie połowa pojemności na godzinę);
+`annual_kwh` (zużycie domu); `tariff` (`g11` albo `dynamic`); `soc` (naładowanie teraz, 0–1); `export_limit`
+(słaba sieć: falownik wyłącza się powyżej tylu kW); `plan=false` pomija plan na dziś i jutro.
 
 Kody błędów: 400 złe parametry, 404 nie znaleziono adresu, 502 nie odpowiada Google albo Nominatim, 503 brak
 klucza Google.
@@ -357,7 +374,7 @@ Zawsze:
 | `house_level` | `false`, gdy dopasowano tylko ulicę |
 | `alternatives` | inne miejsca pasujące do tekstu: `lat`, `lon`, `label`, `house_level` |
 | `warnings` | `street_only`, `far_from_address`, `monthly_fallback`, `images_unavailable`, `layout_fallback` |
-| `sizes` | tabela mocy: `kwp`, `panels`, `kwh_year`, `kwh_per_kwp` |
+| `sizes` | tabela mocy: `kwp`, `panels`, `kwh_year`, `kwh_per_kwp`, `economics` |
 | `images` | adresy obrazków: `confirm`, `all`, `selected` |
 | `assumptions`, `attribution` | założenia i tekst o źródłach danych |
 
@@ -368,19 +385,44 @@ Gdy `roof_available` jest `true`:
 | `building` | `lat`, `lon`, `distance_m` od adresu, `roof_area_m2`, `max_panels`, `max_kwp`, `imagery_quality`, `imagery_date` |
 | `panel` | `watts`, `google_watts`, `height_m`, `width_m` |
 | `segments` | połacie: `segment`, `facing` (N, NE, …), `pitch_deg`, `azimuth_deg`, `area_m2`, `max_panels`, `kwh_dc_per_panel` |
-| `selected` | wybrany układ: `panels`, `kwp`, `kwh_year`, `kwh_per_kwp`, `monthly_kwh` (12 liczb), `monthly_source`, `pvgis_kwh_year`, `per_segment` |
+| `selected` | wybrany układ: `panels`, `kwp`, `kwh_year`, `kwh_per_kwp`, `monthly_kwh` (12 liczb), `monthly_source`, `pvgis_kwh_year`, `per_segment`, `economics` |
 | `selected.per_segment` | `segment`, `facing`, `pitch_deg`, `azimuth_deg`, `panels`, `kwp`, `kwh_year`, `kwh_per_kwp`, `pvgis_kwh_per_kwp`, `vs_pvgis` |
-| `layout` | `algorithm` (`google` albo `own`); dla `own` także `margin_m`, `gap_m`, `google_max_panels` i `google_kwh_year`: produkcja układu Google dla tej samej liczby paneli (`null`, gdy Google mieści ich mniej) |
+| `layout` | `algorithm` (`google`, `own` albo `pro`); dla `own` i `pro` także `margin_m`, `gap_m`, `google_max_panels` i `google_kwh_year`: produkcja układu Google dla tej samej liczby paneli (`null`, gdy Google mieści ich mniej) |
 
 Gdy `roof_available` jest `false`:
 
 | Pole | Opis |
 |---|---|
 | `reason` | `no_roof_data` albo `no_panels_fit` |
-| `generic` | `kwp`, `kwh_year`, `kwh_per_kwp`, `monthly_kwh`, `monthly_source`, `tilt_deg`, `azimuth_deg`, `facing` |
+| `generic` | `kwp`, `kwh_year`, `kwh_per_kwp`, `monthly_kwh`, `monthly_source`, `tilt_deg`, `azimuth_deg`, `facing`, `economics` |
 
 `monthly_source` ma wartość `pvgis` albo `typical_poland`. Ta druga oznacza, że PVGIS nie odpowiedział i miesiące
 pochodzą z typowego profilu dla środkowej Polski.
+
+Pole `economics` (w `selected`, w `generic`, w każdym wierszu `sizes` i w odpowiedzi `/api/economics`):
+
+| Pole | Opis |
+|---|---|
+| `capex_gross_pln`, `pit_relief_pln`, `capex_net_pln` | koszt instalacji, ulga termomodernizacyjna (12%) i koszt po uldze |
+| `annual_opex_pln` | roczne koszty utrzymania (0,8% kosztu instalacji, co najmniej 150 zł) |
+| `self_kwh`, `export_kwh` | energia zużyta na bieżąco i oddana do sieci |
+| `self_savings_pln`, `export_income_pln` | uniknięty zakup prądu i przychód ze sprzedaży nadwyżek |
+| `gross_savings_annual_pln`, `net_savings_annual_pln` | roczne oszczędności przed kosztami utrzymania i po nich |
+| `payback_years`, `payback_with_relief_years` | okres zwrotu bez ulgi i z ulgą (`null`, gdy oszczędności nie są dodatnie) |
+| `profit_25y_pln` | zysk po 25 latach, z degradacją paneli 0,5% rocznie |
+| `retail_price_pln`, `feed_in_price_pln`, `self_consumption_pct` | przyjęte ceny i autokonsumpcja |
+
+### Strona demo
+
+`web/index.html` korzysta ze wszystkich funkcji serwera:
+
+- **Dach:** wybór algorytmu (Solari PRO, Solari Classic, Google), odstęp od krawędzi, szczelina między panelami,
+  typ panelu (moc i wymiary), kolejność paneli, suwak liczby paneli, trzy widoki dachu, tabela połaci.
+- **Opłacalność:** raport i tabela mocy pokazują liczby z `solary/economics.py`. Suwaki cen i autokonsumpcji oraz
+  podgląd przy przesuwaniu suwaka paneli pytają `/api/economics`, więc wzór jest w jednym miejscu.
+- **Magazyn energii:** działa także dla adresu bez danych o dachu (wtedy dla podanej mocy, nachylenia i kierunku).
+  Pokazuje plan agenta do końca jutra z kosztem, rachunek za rok dla każdego sterowania, informację o nauczonym
+  agencie oraz tabelę z `/api/battery/evaluation`: agent na tle MPC i optimum.
 
 ### Własny frontend
 
@@ -408,8 +450,9 @@ wystarcza.
 - **Cienie.** Są wliczone w sumę roczną, ale podział na miesiące ich nie zna.
 - **To szacunek.** Wynik opiera się na danych wieloletnich. Pojedynczy rok może się różnić o kilka procent,
   a strat 14% nikt nie zmierzył dla konkretnej instalacji.
-- **Finanse tylko dla magazynu.** Analiza dachu liczy energię; rachunki (net-billing) liczy tylko część o magazynie.
-  Nie ma cen instalacji ani okresu zwrotu.
+- **Dwa modele finansów.** Raport opłacalności dachu (`solary/economics.py`) jest uproszczony: stawki za kWp, jedna
+  cena zakupu, jedna cena sprzedaży i stały procent autokonsumpcji. Część o magazynie liczy rachunek dokładniej,
+  kwadrans po kwadransie według zasad net-billingu. Liczby z obu części nie są ze sobą porównywalne.
 
 ## Źródła danych i ich warunki
 
@@ -426,7 +469,7 @@ wystarcza.
 
 ## Testy
 
-`uv run pytest` uruchamia 182 testy. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
+`uv run pytest` uruchamia 188 testów. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
 a rysowanie obrazków działa na małych, sztucznych plikach GeoTIFF. Własny układ paneli jest sprawdzany na sztucznych
 dachach z `tests/roofs.py` (dwuspadowy z kominem, kopertowy, płaski z attyką i klimatyzatorem, dwa płaskie na różnych
 wysokościach, mansardowy): odstęp od krawędzi i przeszkód, brak nakładania się paneli i paneli nad uskokiem,

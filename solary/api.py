@@ -7,8 +7,10 @@ GET /api/roof?address=...&kwp=6     roof, panel layout and production (see READM
 GET /api/roof?lat=..&lon=..&panels=15
 GET /api/roof?address=...&layout=own&margin=0.2   panels placed by our algorithm instead of Google's
 GET /api/roof/image/{name}          PNG previews named in the "images" field
+GET /api/economics?sizes=6:5729     profitability of installations given as "kWp:kWh a year,..."
 GET /api/battery?lat=..&lon=..&planes=6:35:180&battery_kwh=10&annual_kwh=4000&tariff=g11
                                     battery: yearly savings and the plan for today and tomorrow
+GET /api/battery/evaluation         every strategy on the test year for the reference houses
 
 Set SOLARY_CORS_ORIGINS (comma-separated) when the frontend runs on another origin.
 """
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import os
 import re
 import threading
@@ -27,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .config import CONFIG
+from .economics import estimate_economics
 from .errors import SolaryError
 from .geocode import AddressNotFound, GeocodingError
 from .service import analyze
@@ -35,7 +39,7 @@ from .solar_api import MissingApiKey, SolarApiError, has_api_key, purge_expired
 IMAGE_NAME = re.compile(r"^(confirm|panels)_[0-9A-Za-z._-]+\.png$")
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
-app = FastAPI(title="solary", version="0.1.0",
+app = FastAPI(title="Solari", version="0.1.0",
               description="Panel layout on a real roof found by address, with a production estimate.")
 _origins = [o.strip() for o in os.environ.get("SOLARY_CORS_ORIGINS", "").split(",") if o.strip()]
 if _origins:
@@ -55,15 +59,25 @@ def roof(address: str | None = Query(None, max_length=300),
          kwp: float | None = Query(None, gt=0, le=1000), panels: int | None = Query(None, ge=1, le=100000),
          tilt: float | None = Query(None, ge=0, le=90), azimuth: float | None = Query(None, ge=0, le=360),
          images: bool = True, layout: str | None = Query(None, pattern="^(google|own|pro)$"),
-         margin: float | None = Query(None, ge=0, le=2),
+         margin: float | None = Query(None, ge=0, le=2), gap: float | None = Query(None, ge=0, le=0.5),
+         order: str | None = Query(None, pattern="^(google|yield)$"),
+         panel_watts: float | None = Query(None, ge=50, le=1000),
+         panel_height: float | None = Query(None, ge=0.5, le=3), panel_width: float | None = Query(None, ge=0.5, le=3),
          retail_price: float | None = Query(None, ge=0.1, le=10.0),
          feed_in_price: float | None = Query(None, ge=0.0, le=10.0),
          self_consumption: float | None = Query(None, ge=0.0, le=100.0)):
     """Roof at `address` (or lat/lon) with the best `panels` panels (or those closest to `kwp`).
-    `layout=own` or `layout=pro` places the panels with our algorithms, keeping `margin` metres free around each."""
+    `layout=own` or `layout=pro` places the panels with our algorithms, keeping `margin` metres free around each
+    and `gap` metres between them; `panel_height` and `panel_width` (metres, both) set the panel they lay out.
+    `panel_watts` is the power of one panel; `order=yield` takes the panels strictly best-first."""
     if not (address and address.strip()) and (lat is None or lon is None):
         raise HTTPException(400, "give an address, or both lat and lon")
-    changes = {k: v for k, v in {"layout": layout, "layout_margin_m": margin}.items() if v is not None}
+    if (panel_height is None) != (panel_width is None):
+        raise HTTPException(400, "give both panel_height and panel_width, or neither")
+    size = (panel_height, panel_width) if panel_height is not None else None
+    changes = {"layout": layout, "layout_margin_m": margin, "layout_gap_m": gap, "panel_order": order,
+               "panel_watts": panel_watts, "panel_size_m": size}
+    changes = {k: v for k, v in changes.items() if v is not None}
     how = {"cfg": dataclasses.replace(CONFIG, **changes)} if changes else {}
     extra = {}
     if retail_price is not None:
@@ -88,6 +102,28 @@ def roof(address: str | None = Query(None, max_length=300),
     return res
 
 
+@app.get("/api/economics")
+def economics(sizes: str = Query(..., max_length=2000, pattern=r"^[0-9.:,]+$"),
+              retail_price: float | None = Query(None, ge=0.1, le=10.0),
+              feed_in_price: float | None = Query(None, ge=0.0, le=10.0),
+              self_consumption: float | None = Query(None, ge=0.0, le=100.0)):
+    """Profitability of the installations in `sizes` ("kWp:kWh a year,..."): the figures /api/roof
+    returns under "economics", for other prices or sizes without analysing the roof again."""
+    prices = {"retail_price_pln": retail_price, "feed_in_price_pln": feed_in_price,
+              "self_consumption_pct": self_consumption}
+    prices = {k: v for k, v in prices.items() if v is not None}
+    rows = []
+    try:
+        for part in sizes.split(","):
+            kwp, kwh_year = (float(v) for v in part.split(":"))
+            if not (0 < kwp <= 1000 and 0 <= kwh_year <= 10_000_000):
+                raise ValueError(part)
+            rows.append({"kwp": kwp, "kwh_year": kwh_year, "economics": estimate_economics(kwp, kwh_year, **prices)})
+    except ValueError as e:
+        raise HTTPException(400, "sizes must be kWp:kWh[,kWp:kWh...]") from e
+    return {"rows": rows}
+
+
 def parse_planes(text: str) -> list[tuple[float, float, float]]:
     """ "kWp:tilt:azimuth,..." -> [(kWp, tilt, azimuth), ...]"""
     planes = []
@@ -101,7 +137,7 @@ def parse_planes(text: str) -> list[tuple[float, float, float]]:
 
 @app.get("/api/battery")
 def battery(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
-            planes: str = Query("6:35:180", max_length=400, pattern=r"^[0-9.:,]+$"),
+            planes: str = Query("6:35:180", max_length=4000, pattern=r"^[0-9.:,]+$"),
             kwh_year: float | None = Query(None, gt=0, le=1_000_000),
             battery_kwh: float = Query(10.0, gt=0, le=200), battery_kw: float | None = Query(None, gt=0, le=100),
             annual_kwh: float = Query(4000.0, gt=0, le=100_000), tariff: str = Query("g11", pattern="^(g11|dynamic)$"),
@@ -130,6 +166,17 @@ def battery(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-
         raise HTTPException(400, str(e)) from e
 
 
+@app.get("/api/battery/evaluation")
+def battery_evaluation():
+    """Every strategy (usual inverter, RL agent, both MPCs, optimum) on the test year for the
+    reference houses: the report `python -m solary.battery evaluate` writes."""
+    from .battery.evaluate import REPORT_PATH
+
+    if not REPORT_PATH.is_file():
+        raise HTTPException(404, "no evaluation report: run python -m solary.battery evaluate")
+    return json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+
+
 @app.get("/api/roof/image/{name}")
 def roof_image(name: str):
     path = CONFIG.roof_dir / name
@@ -149,7 +196,7 @@ def demo_page():
 def main() -> None:
     import uvicorn
 
-    ap = argparse.ArgumentParser(prog="python -m solary.api", description="Start the solary HTTP API.")
+    ap = argparse.ArgumentParser(prog="python -m solary.api", description="Start the Solari HTTP API.")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
