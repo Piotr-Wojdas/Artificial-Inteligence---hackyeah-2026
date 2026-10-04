@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: solari
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"
