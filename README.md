@@ -15,7 +15,6 @@
 >
 > *(Aplikacja działa na żywo z podpiętym kluczem Google Solar API – w pełni funkcjonalna, nie wymaga instalacji ani wpisywania kluczy).*
 >
-> 🎬 **Skrypt lektorski & Notatki z wideo:** [`VOICEOVER_SKRYPT.txt`](VOICEOVER_SKRYPT.txt)  
 > 📍 **Przykładowe adresy do natychmiastowego przetestowania w demo (wystarczy kliknąć przycisk w aplikacji):**
 > - `Mariacka 1, Katowice` – pełna geometria 3D, autorski układ Solari PRO, symulacja magazynu z agentem RL
 > - `Świdnicka 10, Wrocław` – skomplikowany dach zabytkowej kamienicy z kominami i przeszkodami
