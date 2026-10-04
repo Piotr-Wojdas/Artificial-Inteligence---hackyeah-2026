@@ -23,7 +23,7 @@ uv run python -m solary "Mariacka 1, Katowice" --kwp 6     # wynik w terminalu +
 uv run python -m solary "Mariacka 1, Katowice" --panels 15 --layout own   # panele rozmieszcza nasz algorytm
 uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10   # magazyn: rok + plan na dziś i jutro
 uv run python -m solary.api                                # strona demo: http://127.0.0.1:8000
-uv run pytest                                              # 178 testów, bez internetu
+uv run pytest                                              # 182 testy, bez internetu
 ```
 
 Klucz: w [Google Cloud Console](https://console.cloud.google.com/) włącz **Solar API** w projekcie z podpiętymi
@@ -116,27 +116,47 @@ mały, a wynik da się sprawdzić. Działa tylko tam, gdzie Google ma dane o dac
 
 ## Magazyn energii sterowany przez AI
 
-Dom ma panele (te z analizy dachu), baterię i umowę z ceną zależną od rynku. Co 15 minut sterownik wybiera jedną z
-ośmiu decyzji: autokonsumpcja, bez ruchu, ładuj tylko z nadwyżki PV, pokrywaj zużycie (a nadwyżkę sprzedaj),
-ładuj z sieci (pół albo pełna moc), sprzedawaj z baterii (pół albo pełna moc). Decyzję podejmuje **agent nauczony
-metodą uczenia ze wzmocnieniem** (sieć neuronowa 106 → 128 → 128 → 8).
+Dom ma panele (te z analizy dachu), baterię, umowę z ceną zależną od rynku i lokalną sieć, która w słoneczne południe
+bywa przeładowana. Co 15 minut sterownik wybiera jedną z 11 decyzji: autokonsumpcja, bez ruchu, ładuj tylko
+z nadwyżki PV, ładuj tylko szczyt ponad limit sieci, pokrywaj zużycie (a nadwyżkę sprzedaj), ładuj z sieci albo
+sprzedawaj z baterii z mocą 25, 50 lub 100%. Decyzję podejmuje **agent nauczony metodą uczenia ze wzmocnieniem**
+(sieć neuronowa 226 → 256 → 256 → 11).
 
 ```bash
 uv run python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10 --annual-kwh 4000 --tariff g11
-uv run python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tilt 35 --azimuth 180 --tariff dynamic
+uv run python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tariff dynamic --export-limit 3
 uv run python -m solary.battery evaluate        # wszystkie strategie na roku testowym -> solary/battery/evaluation.json
-uv sync --group rl && uv run python -m solary.battery train   # nauka agenta od nowa (torch, ok. 15 min na 4 rdzeniach)
+uv sync --group rl && uv run python -m solary.battery train   # nauka agenta od nowa (torch, ok. 40 min na 4 rdzeniach)
 ```
 
 Wynik `plan`: rachunek za rok testowy bez magazynu, ze zwykłym falownikiem, z agentem i w optimum oraz plan od teraz
-do końca jutra (co robi bateria w każdym kwadransie). Na stronie demo to sekcja „Magazyn energii” pod wynikiem dachu.
+do końca jutra (co robi bateria w każdym kwadransie). `--export-limit 3` oznacza słabą sieć, w której falownik
+wyłącza się, gdy oddaje ponad 3 kW. Na stronie demo to sekcja „Magazyn energii” pod wynikiem dachu.
+
+### Fizyka: dlaczego to nie jest zadanie liniowe
+
+Prawdziwa instalacja nie jest liniowa, więc symulator też nie jest (`solary/battery/model.py`):
+
+- **Straty falownika zależą od mocy.** Falownik hybrydowy zużywa ok. 40 W, gdy przesyła energię z lub do baterii,
+  a do tego traci moc proporcjonalnie do jej kwadratu. Pokrywanie nocnego zużycia 200 W z baterii traci ok. 20%
+  energii, ładowanie z mocą 2,5 kW ok. 3%.
+- **Zużycie baterii.** Szybkie ładowanie i rozładowanie zużywa więcej na kWh, a trzymanie baterii powyżej 90%
+  przyspiesza starzenie.
+- **Wyłączenia falownika przez napięcie sieci.** W słoneczne południe lokalna sieć jest pełna prądu z PV (cena RCE
+  jest wtedy niska), a każde oddane kW podnosi napięcie. Powyżej limitu zabezpieczenie (253 V) wyłącza falownik:
+  produkcja z tego kwadransu przepada, a dom bierze prąd z sieci. To częsty problem na polskich wsiach i osiedlach
+  z wieloma instalacjami. Modelujemy to jako limit mocy oddawanej w kwadransach z RCE ≤ 0,15 zł/kWh.
+- **Niepewna pogoda.** Błąd prognozy produkcji zależy od pogody: dni bezchmurne i pochmurne są łatwe, a dni
+  z przelotnymi chmurami trudne (błąd do ok. 50% na jutro). Sterownik zna niepewność każdego dnia, jak z prognozy
+  zespołowej, ale nie zna samego błędu.
+- **Zakup i sprzedaż nigdy w tym samym kwadransie**, nawet gdy RCE jest wyższe od ceny zakupu.
 
 ### Skąd wiemy, kiedy prąd jest drogi
 
 - **Ceny.** PSE publikuje RCE (rynkową cenę energii) na każdy kwadrans następnego dnia, zwykle około 14:00
-  (`api.raporty.pse.pl/api/rce-pln`, bez klucza). Do 14:00 znamy ceny do północy, potem do końca jutra. Dalej agent
-  zakłada ceny jak dzień wcześniej. Typowy dzień: najtaniej w południe (słońce zalewa sieć, bywa poniżej zera),
-  najdrożej około 19:00.
+  (`api.raporty.pse.pl/api/rce-pln`, bez klucza). Do 14:00 znamy ceny do północy, potem do końca jutra. Dalej
+  sterownik zakłada ceny jak dzień wcześniej. Typowy dzień: najtaniej w południe (słońce zalewa sieć, bywa poniżej
+  zera), najdrożej około 19:00.
 - **Pogoda.** Historia: NASA POWER (godzinowe nasłonecznienie, światło rozproszone, temperatura). Prognoza:
   Open-Meteo. Nasłonecznienie przeliczamy na każdą połać dachu (model izotropowy) i na moc paneli (temperatura,
   straty 14%). Z analizą dachu produkcję skalujemy do rocznego wyniku Google, który zna lokalne cienie.
@@ -152,8 +172,8 @@ zależy od całego roku domu: póki depozyt się zużywa, jest warta pełne RCE;
 kupowanej energii, tylko 30% RCE (a kupowana kWh kosztuje wtedy samą dystrybucję). Parametr `theta` (0–1) ustawia
 dom między tymi skrajnościami; dobieramy go tak, żeby roczny rachunek był najniższy. Rachunek roczny liczymy dokładnie
 według tych zasad. Domyślne ceny 2026 r. (G11: energia 0,62 zł + dystrybucja 0,38 zł za kWh brutto; dynamiczna:
-(RCE + 0,05 zł) × 1,23 + 0,37 zł) i koszt zużycia baterii (0,10 zł za kWh z niej pobraną) to założenia
-w `solary/battery/model.py`: porównaj je ze swoim rachunkiem.
+(RCE + 0,05 zł) × 1,23 + 0,38 zł), straty falownika i koszty zużycia baterii to założenia w
+`solary/battery/model.py`: porównaj je ze swoim rachunkiem i kartą katalogową falownika.
 
 ### Strategie, z którymi porównujemy agenta
 
@@ -161,44 +181,71 @@ w `solary/battery/model.py`: porównaj je ze swoim rachunkiem.
 |---|---|---|
 | bez magazynu | – | rachunek z samymi panelami |
 | zwykły falownik | bieżący kwadrans | ładuje z nadwyżki, oddaje, gdy dom potrzebuje: tak działa większość falowników |
-| agent RL | to samo co MPC | sieć neuronowa wybiera jedną z 8 decyzji; liczy się w ułamku sekundy |
-| MPC | ceny opublikowane, prognoza PV i zużycia | co godzinę układa najtańszy plan na 36 h (programowanie liniowe) |
-| optimum | całą przyszłość dokładnie | najlepszy możliwy wynik; żaden sterownik go nie osiągnie, służy za miarę |
+| agent RL | ceny opublikowane, prognozy i ich niepewność | sieć neuronowa wybiera jedną z 11 decyzji w 0,3 ms (z przygotowaniem danych) |
+| MPC liniowe | to samo co agent | co godzinę najtańszy plan na 36 h jako program liniowy: stała sprawność, liniowe zużycie, limit sieci jako ograniczenie; tak działa większość przemysłowych sterowników |
+| MPC nieliniowe | to samo co agent | co godzinę programowanie dynamiczne na 36 h z dokładną fizyką i tymi samymi 11 decyzjami, ale ufa prognozie; mocny, wolniejszy planista |
+| optimum | całą przyszłość dokładnie | programowanie dynamiczne z dokładną fizyką na całym roku; najlepszy możliwy wynik przy tych decyzjach, służy za miarę |
 
 ### Jak uczy się agent
 
 1. **Symulator.** Tydzień prawdziwych cen RCE i pogody z okresu 1.07.2024–30.06.2025 w jednym z czterech miast
-   (Katowice, Warszawa, Gdańsk, Wrocław) i losowy dom: 3–12 kWp w 7 orientacjach, bateria 5–20 kWh, zużycie
-   2000–7000 kWh, G11 albo taryfa dynamiczna, różne ceny i `theta`. Agent widzi to, co prawdziwy sterownik:
-   naładowanie baterii, porę dnia i roku, ceny na 24 h (opublikowane albo jak wczoraj), prognozę PV z błędem rosnącym
-   z wyprzedzeniem (20–40% na jutro, jak prognoza dla jednego dachu) i oczekiwane zużycie.
-2. **Nagroda.** Złotówki zaoszczędzone w danym kwadransie względem tego samego domu bez baterii.
-3. **Imitacja.** Sieć najpierw uczy się decyzji MPC z 320 losowych tygodni (215 tys. decyzji).
-4. **PPO** (stable-baselines3): agent sam prowadzi tydzień za tygodniem i poprawia to, czego się nauczył. Co
-   200 tys. kroków dostaje ocenę na stałych tygodniach walidacyjnych; zapisujemy najlepszą wersję.
-5. **Eksport.** Wagi sieci i normalizacja wejść trafiają do `solary/battery/policy.npz` (120 kB). Aplikacja liczy
-   decyzje w czystym numpy, bez torcha.
-6. **Test.** `evaluate` sprawdza wszystkie strategie na roku 1.07.2025–30.06.2026, którego agent nie widział.
+   (Katowice, Warszawa, Gdańsk, Wrocław) i losowy dom: 3–12 kWp w 7 orientacjach, bateria 5–20 kWh z losowymi
+   stratami i kosztami zużycia, zużycie 2000–7000 kWh, G11 albo taryfa dynamiczna, różne ceny i `theta`, mocna sieć
+   albo słaba (limit 30–80% mocy PV).
+2. **Co widzi agent.** Naładowanie baterii, porę dnia i roku, ceny zakupu i sprzedaży, prognozę PV i zużycia na
+   36 h (pierwsze 4 h co kwadrans, dalej co godzinę), kwadranse zagrożone wyłączeniem w najbliższych 4 h, limit
+   sieci, niepewność prognozy na dziś i jutro, ile godzin cen jest już opublikowanych oraz parametry baterii.
+3. **Nagroda.** Złotówki zaoszczędzone w danym kwadransie względem tego samego domu bez baterii, z dokładną fizyką.
+4. **Imitacja.** Sieć najpierw uczy się decyzji MPC nieliniowego z 800 losowych tygodni (538 tys. decyzji); zgadza
+   się z nim w 93% kwadransów.
+5. **PPO** (stable-baselines3): osobne sieci decyzji i wartości 256 × 256. Agent sam prowadzi tydzień za
+   tygodniem i poprawia to, czego się nauczył. Żeby PPO nie zepsuło imitacji: normalizacja wejść zostaje
+   zamrożona (sieć nauczyła się na niej), przez pierwsze 300 tys. kroków uczy się tylko krytyk (wartość stanu),
+   bez losowej eksploracji (entropia 0), z małym, malejącym krokiem i limitem zmiany polityki (target KL). Co
+   200 tys. kroków agent dostaje ocenę na 24 stałych tygodniach walidacyjnych; zapisujemy najlepszą wersję.
+6. **Eksport.** Wagi sieci i normalizacja wejść trafiają do `solary/battery/policy.npz`. Aplikacja liczy decyzje
+   w czystym numpy, bez torcha.
+7. **Test.** `evaluate` sprawdza wszystkie strategie na roku 1.07.2025–30.06.2026, którego agent nie widział.
 
+<!-- battery-results -->
 ### Wyniki na roku testowym
 
-Rok 2025-07-01 – 2026-06-30 w Katowicach: prawdziwe ceny RCE i pogoda, typowe zużycie. Agent nie widział tego roku podczas nauki. Rachunek roczny według zasad net-billingu; w nawiasie, jaką część możliwej oszczędności (optimum) daje każda strategia. Pełny raport: `solary/battery/evaluation.json`.
+Rok 2025-07-01 – 2026-06-30 w Katowicach: prawdziwe ceny RCE i pogoda, typowe zużycie, fizyka nieliniowa. Agent nie widział tego roku podczas nauki. Rachunek roczny według zasad net-billingu, ze stratami falownika i zużyciem baterii; w nawiasie, jaką część możliwej oszczędności (optimum) daje każda strategia, a pod spodem, ile razy falownik wyłączył się przez napięcie sieci. Pełny raport: `solary/battery/evaluation.json`.
 
-| Dom | Bez magazynu | Zwykły falownik | Agent RL | MPC | Optimum |
-|---|---|---|---|---|---|
-| 6 kWp na południe, bateria 10 kWh, G11, 4 000 kWh/rok | 1 169 zł | 403 zł (76%) | 184 zł (97%) | 171 zł (98%) | 153 zł |
-| 6 kWp na południe, bateria 10 kWh, taryfa dynamiczna, 4 000 kWh/rok | 1 536 zł | 472 zł (77%) | 184 zł (98%) | 171 zł (99%) | 153 zł |
-| 8 kWp wschód-zachód, bateria 5 kWh, G11, 5 000 kWh/rok | 1 609 zł | 1 054 zł (69%) | 826 zł (97%) | 822 zł (98%) | 802 zł |
-| 4 kWp na południe, bateria 15 kWh, taryfa dynamiczna, 6 000 kWh/rok | 4 062 zł | 2 709 zł (62%) | 2 443 zł (75%) | 1 989 zł (96%) | 1 893 zł |
+| Dom | Bez magazynu | Zwykły falownik | Agent RL | MPC liniowe | MPC nieliniowe | Optimum |
+|---|---|---|---|---|---|---|
+| 6 kWp na południe, bateria 10 kWh, G11, mocna sieć, 4 000 kWh/rok | 1 174 zł | 460 zł (69%) | 175 zł (96%) | 196 zł (94%) | 163 zł (98%) | 138 zł |
+| 6 kWp na południe, bateria 10 kWh, G11, słaba sieć (wyłącza powyżej 3 kW), 4 000 kWh/rok | 1 284 zł<br>991 wyłączeń | 560 zł (63%)<br>916 wyłączeń | 174 zł (97%)<br>18 wyłączeń | 195 zł (95%)<br>16 wyłączeń | 164 zł (98%)<br>18 wyłączeń | 138 zł<br>0 wyłączeń |
+| 6 kWp na południe, bateria 10 kWh, taryfa dynamiczna, słaba sieć, 4 000 kWh/rok | 1 589 zł<br>991 wyłączeń | 582 zł (69%)<br>916 wyłączeń | 174 zł (98%)<br>18 wyłączeń | 195 zł (96%)<br>16 wyłączeń | 164 zł (98%)<br>18 wyłączeń | 138 zł<br>0 wyłączeń |
+| 8 kWp wschód-zachód, bateria 5 kWh, G11, słaba sieć (4 kW), 5 000 kWh/rok | 1 644 zł<br>263 wyłączeń | 1 161 zł (56%)<br>263 wyłączeń | 861 zł (91%)<br>21 wyłączeń | 904 zł (86%)<br>8 wyłączeń | 836 zł (94%)<br>6 wyłączeń | 788 zł<br>0 wyłączeń |
+| 4 kWp na południe, bateria 15 kWh, taryfa dynamiczna, mocna sieć, 6 000 kWh/rok | 4 059 zł | 2 746 zł (62%) | 2 173 zł (90%) | 2 110 zł (93%) | 2 040 zł (96%) | 1 955 zł |
 
-Agent zbliża się do MPC, choć decyduje w ułamku sekundy, a MPC rozwiązuje co godzinę program liniowy. Słabiej wypada w domu z dużym zużyciem i taryfą dynamiczną, gdzie opłaca się ładować baterię z sieci w tanich godzinach: w przykładach od MPC takich decyzji było mało. Agent uczony bez imitacji (samo PPO, 3 mln kroków) osiągał 93%, 95%, 81% i 61% optimum.
+**Co z tego wynika.**
+
+- **Zwykły falownik** zostawia 30–45% możliwej oszczędności. Przy słabej sieci wyłącza się ok. 900 razy w roku:
+  rano ładuje baterię do pełna, a w południe nie ma już gdzie schować nadwyżki, więc wysyła ją do sieci, która
+  jest przeciążona.
+- **Agent RL** daje 90–98% optimum i na czterech z pięciu domów jest lepszy od MPC liniowego, choć wie dokładnie to
+  samo. Tam, gdzie liczy się nieliniowość (straty rosnące z mocą, szybsze zużycie przy dużym prądzie, wyłączenie
+  falownika „wszystko albo nic”), liniowy plan podejmuje gorsze decyzje. Wyjątek to dom z dużą baterią (15 kWh)
+  i taryfą dynamiczną: tam liczy się głównie arbitraż cenowy, który program liniowy planuje dobrze.
+- **MPC nieliniowe** (programowanie dynamiczne co godzinę) jest jeszcze o 1–6 punktów lepsze, ale liczy ok.
+  17 razy dłużej (4,3 ms wobec 0,26 ms na kwadrans) i potrzebuje dokładnego modelu fizyki konkretnego domu. Agent
+  ma tę wiedzę w wagach, nauczoną na tysiącach losowych domów, i działa na słabym sprzęcie bez solvera.
+
+Agent uczy się od MPC nieliniowego (imitacja), a PPO dokłada niewiele (+0,1 zł na tydzień walidacyjny): planista
+jest już blisko optimum, więc nauka metodą prób i błędów ma mało do poprawienia. Zysk z RL to przede wszystkim
+szybkość i brak solvera przy jakości bliskiej planisty, a nie przebicie go.
+<!-- /battery-results -->
 
 ### Ograniczenia magazynu
 
 - Zużycie domu jest typowe, nie Twoje: odczyty z licznika dałyby dokładniejszy wynik.
-- Błąd prognozy PV w nauce i ocenie jest symulowany; prawdziwe archiwalne prognozy dałyby uczciwszy test.
-- Depozyt rozliczamy w skali roku, a nie miesiąc po miesiącu; nie modelujemy limitu mocy oddawanej do sieci ani
-  opłat stałych.
+- Błąd prognozy PV w nauce i ocenie jest symulowany (jego wielkość zależy od pogody); prawdziwe archiwalne prognozy
+  dałyby uczciwszy test.
+- Wyłączenia przez napięcie modelujemy prosto: limit mocy oddawanej przy niskiej cenie RCE. Prawdziwe napięcie
+  zależy od sieci i sąsiadów.
+- Depozyt rozliczamy w skali roku, a nie miesiąc po miesiącu; nie ma opłat stałych.
 - Agent jest oceniany w symulacji. Do sterowania prawdziwą baterią trzeba połączyć go z falownikiem (np. Modbus).
 
 ## Założenia
@@ -377,7 +424,7 @@ wystarcza.
 
 ## Testy
 
-`uv run pytest` uruchamia 178 testów. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
+`uv run pytest` uruchamia 182 testy. Nie łączą się z siecią: odpowiedzi Google, PVGIS i Nominatim są podstawione,
 a rysowanie obrazków działa na małych, sztucznych plikach GeoTIFF. Własny układ paneli jest sprawdzany na sztucznych
 dachach z `tests/roofs.py` (dwuspadowy z kominem, kopertowy, płaski z attyką i klimatyzatorem, dwa płaskie na różnych
 wysokościach, mansardowy): odstęp od krawędzi i przeszkód, brak nakładania się paneli i paneli nad uskokiem,

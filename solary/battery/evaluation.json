@@ -5,7 +5,7 @@
  ],
  "location": "Katowice",
  "policy": {
-  "seed": 1,
+  "seed": 2,
   "train": [
    "2024-07-01",
    "2025-06-30"
@@ -16,25 +16,29 @@
    "Gdańsk",
    "Wrocław"
   ],
-  "imitation_weeks": 320,
-  "steps": 1200000,
-  "validation_zl_per_week": 26.7,
-  "trained_at": "2026-10-04 00:01",
+  "imitation_weeks": 800,
+  "teacher": "dp_mpc",
+  "steps": 1400000,
+  "validation_zl_per_week": 31.67,
+  "trained_at": "2026-10-04 01:21",
   "actions": [
    "self_consumption",
    "idle",
    "charge_surplus",
+   "absorb_peak",
    "cover_deficit",
-   "charge_half",
-   "charge_full",
-   "discharge_half",
-   "discharge_full"
+   "charge_25",
+   "charge_50",
+   "charge_100",
+   "discharge_25",
+   "discharge_50",
+   "discharge_100"
   ],
-  "obs_size": 106
+  "obs_size": 226
  },
  "houses": [
   {
-   "name": "Dom 6 kWp na południe, magazyn 10 kWh, G11",
+   "name": "6 kWp na południe, bateria 10 kWh, G11, mocna sieć",
    "annual_kwh": 4000,
    "planes": [
     [
@@ -46,10 +50,14 @@
    "battery": {
     "capacity_kwh": 10,
     "power_kw": 5,
-    "efficiency": 0.95,
+    "efficiency": 0.975,
     "soc_min": 0.1,
     "soc_max": 1.0,
-    "wear_zl_per_kwh": 0.1
+    "standby_kw": 0.04,
+    "resistive": 0.03,
+    "wear_zl_per_kwh": 0.1,
+    "crate_wear": 0.4,
+    "high_soc_zl_per_h": 0.01
    },
    "tariff": {
     "kind": "g11",
@@ -61,69 +69,101 @@
     "refund": 0.3,
     "theta": 0.0
    },
+   "grid": {
+    "export_limit_kw": null,
+    "trip_price": 0.15
+   },
    "theta": 1.0,
    "theta_bills": {
-    "0.0": 161.6,
-    "0.5": 159.0,
-    "1.0": 153.3
+    "0.0": 171.9,
+    "0.5": 152.3,
+    "1.0": 137.8
    },
-   "pv_kwh": 6339,
-   "load_kwh": 3945,
+   "pv_kwh": 6320,
+   "load_kwh": 3940,
    "rows": [
     {
      "strategy": "no_battery",
-     "bill_zl": 1169.2,
+     "bill_zl": 1173.5,
      "savings_zl": 0.0,
      "share_of_optimum": 0.0,
-     "import_kwh": 2342,
-     "export_kwh": 4735,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 2340,
+     "export_kwh": 4719,
      "battery_out_kwh": 0,
+     "wear_zl": 0.0,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "rule",
-     "bill_zl": 402.7,
-     "savings_zl": 766.6,
-     "share_of_optimum": 0.755,
-     "import_kwh": 778,
-     "export_kwh": 2996,
-     "battery_out_kwh": 1563,
+     "bill_zl": 459.5,
+     "savings_zl": 714.0,
+     "share_of_optimum": 0.689,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 827,
+     "export_kwh": 2862,
+     "battery_out_kwh": 1513,
+     "wear_zl": 131.1,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "agent",
-     "bill_zl": 183.9,
-     "savings_zl": 985.4,
-     "share_of_optimum": 0.97,
-     "import_kwh": 973,
-     "export_kwh": 3147,
-     "battery_out_kwh": 2036,
-     "lost_deposit_zl": 305.6
+     "bill_zl": 175.3,
+     "savings_zl": 998.3,
+     "share_of_optimum": 0.964,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 1029,
+     "export_kwh": 3069,
+     "battery_out_kwh": 1899,
+     "wear_zl": 155.2,
+     "lost_deposit_zl": 227.8
     },
     {
-     "strategy": "mpc",
-     "bill_zl": 171.0,
-     "savings_zl": 998.2,
-     "share_of_optimum": 0.983,
-     "import_kwh": 853,
-     "export_kwh": 3022,
-     "battery_out_kwh": 2074,
-     "lost_deposit_zl": 312.4
+     "strategy": "lp_mpc",
+     "bill_zl": 195.5,
+     "savings_zl": 978.0,
+     "share_of_optimum": 0.944,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 926,
+     "export_kwh": 2940,
+     "battery_out_kwh": 1978,
+     "wear_zl": 191.2,
+     "lost_deposit_zl": 236.9
+    },
+    {
+     "strategy": "dp_mpc",
+     "bill_zl": 163.1,
+     "savings_zl": 1010.4,
+     "share_of_optimum": 0.976,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 1000,
+     "export_kwh": 3033,
+     "battery_out_kwh": 1961,
+     "wear_zl": 161.7,
+     "lost_deposit_zl": 263.4
     },
     {
      "strategy": "optimum",
-     "bill_zl": 153.3,
-     "savings_zl": 1015.9,
+     "bill_zl": 137.8,
+     "savings_zl": 1035.7,
      "share_of_optimum": 1.0,
-     "import_kwh": 798,
-     "export_kwh": 2961,
-     "battery_out_kwh": 2127,
-     "lost_deposit_zl": 351.3
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 944,
+     "export_kwh": 2971,
+     "battery_out_kwh": 2035,
+     "wear_zl": 166.4,
+     "lost_deposit_zl": 318.4
     }
    ]
   },
   {
-   "name": "Dom 6 kWp na południe, magazyn 10 kWh, taryfa dynamiczna",
+   "name": "6 kWp na południe, bateria 10 kWh, G11, słaba sieć (wyłącza powyżej 3 kW)",
    "annual_kwh": 4000,
    "planes": [
     [
@@ -135,10 +175,139 @@
    "battery": {
     "capacity_kwh": 10,
     "power_kw": 5,
-    "efficiency": 0.95,
+    "efficiency": 0.975,
     "soc_min": 0.1,
     "soc_max": 1.0,
-    "wear_zl_per_kwh": 0.1
+    "standby_kw": 0.04,
+    "resistive": 0.03,
+    "wear_zl_per_kwh": 0.1,
+    "crate_wear": 0.4,
+    "high_soc_zl_per_h": 0.01
+   },
+   "tariff": {
+    "kind": "g11",
+    "g11_energy_zl_kwh": 0.62,
+    "distribution_zl_kwh": 0.38,
+    "margin_zl_kwh": 0.05,
+    "vat": 0.23,
+    "sell_factor": 1.0,
+    "refund": 0.3,
+    "theta": 0.0
+   },
+   "grid": {
+    "export_limit_kw": 3.0,
+    "trip_price": 0.15
+   },
+   "theta": 1.0,
+   "theta_bills": {
+    "0.0": 171.8,
+    "0.5": 152.3,
+    "1.0": 137.8
+   },
+   "pv_kwh": 6320,
+   "load_kwh": 3940,
+   "rows": [
+    {
+     "strategy": "no_battery",
+     "bill_zl": 1283.8,
+     "savings_zl": 0.0,
+     "share_of_optimum": 0.0,
+     "trips": 991,
+     "lost_pv_kwh": 993,
+     "import_kwh": 2432,
+     "export_kwh": 3818,
+     "battery_out_kwh": 0,
+     "wear_zl": 0.0,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "rule",
+     "bill_zl": 559.9,
+     "savings_zl": 723.9,
+     "share_of_optimum": 0.632,
+     "trips": 916,
+     "lost_pv_kwh": 923,
+     "import_kwh": 911,
+     "export_kwh": 2023,
+     "battery_out_kwh": 1513,
+     "wear_zl": 131.1,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "agent",
+     "bill_zl": 173.5,
+     "savings_zl": 1110.3,
+     "share_of_optimum": 0.969,
+     "trips": 18,
+     "lost_pv_kwh": 19,
+     "import_kwh": 1026,
+     "export_kwh": 3043,
+     "battery_out_kwh": 1920,
+     "wear_zl": 158.8,
+     "lost_deposit_zl": 239.3
+    },
+    {
+     "strategy": "lp_mpc",
+     "bill_zl": 194.9,
+     "savings_zl": 1088.8,
+     "share_of_optimum": 0.95,
+     "trips": 16,
+     "lost_pv_kwh": 14,
+     "import_kwh": 930,
+     "export_kwh": 2929,
+     "battery_out_kwh": 1974,
+     "wear_zl": 188.8,
+     "lost_deposit_zl": 233.6
+    },
+    {
+     "strategy": "dp_mpc",
+     "bill_zl": 163.8,
+     "savings_zl": 1120.0,
+     "share_of_optimum": 0.977,
+     "trips": 18,
+     "lost_pv_kwh": 20,
+     "import_kwh": 1001,
+     "export_kwh": 3015,
+     "battery_out_kwh": 1961,
+     "wear_zl": 161.8,
+     "lost_deposit_zl": 262.2
+    },
+    {
+     "strategy": "optimum",
+     "bill_zl": 137.8,
+     "savings_zl": 1145.9,
+     "share_of_optimum": 1.0,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 944,
+     "export_kwh": 2971,
+     "battery_out_kwh": 2035,
+     "wear_zl": 166.4,
+     "lost_deposit_zl": 318.3
+    }
+   ]
+  },
+  {
+   "name": "6 kWp na południe, bateria 10 kWh, taryfa dynamiczna, słaba sieć",
+   "annual_kwh": 4000,
+   "planes": [
+    [
+     6.0,
+     35,
+     180
+    ]
+   ],
+   "battery": {
+    "capacity_kwh": 10,
+    "power_kw": 5,
+    "efficiency": 0.975,
+    "soc_min": 0.1,
+    "soc_max": 1.0,
+    "standby_kw": 0.04,
+    "resistive": 0.03,
+    "wear_zl_per_kwh": 0.1,
+    "crate_wear": 0.4,
+    "high_soc_zl_per_h": 0.01
    },
    "tariff": {
     "kind": "dynamic",
@@ -150,69 +319,101 @@
     "refund": 0.3,
     "theta": 0.0
    },
+   "grid": {
+    "export_limit_kw": 3.0,
+    "trip_price": 0.15
+   },
    "theta": 1.0,
    "theta_bills": {
-    "0.0": 195.4,
-    "0.5": 167.7,
-    "1.0": 153.3
+    "0.0": 202.9,
+    "0.5": 167.1,
+    "1.0": 137.8
    },
-   "pv_kwh": 6339,
-   "load_kwh": 3945,
+   "pv_kwh": 6320,
+   "load_kwh": 3940,
    "rows": [
     {
      "strategy": "no_battery",
-     "bill_zl": 1536.2,
+     "bill_zl": 1589.3,
      "savings_zl": 0.0,
      "share_of_optimum": 0.0,
-     "import_kwh": 2342,
-     "export_kwh": 4735,
+     "trips": 991,
+     "lost_pv_kwh": 993,
+     "import_kwh": 2432,
+     "export_kwh": 3818,
      "battery_out_kwh": 0,
+     "wear_zl": 0.0,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "rule",
-     "bill_zl": 472.5,
-     "savings_zl": 1063.8,
-     "share_of_optimum": 0.769,
-     "import_kwh": 778,
-     "export_kwh": 2996,
-     "battery_out_kwh": 1563,
+     "bill_zl": 581.8,
+     "savings_zl": 1007.5,
+     "share_of_optimum": 0.694,
+     "trips": 916,
+     "lost_pv_kwh": 923,
+     "import_kwh": 911,
+     "export_kwh": 2023,
+     "battery_out_kwh": 1513,
+     "wear_zl": 131.1,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "agent",
-     "bill_zl": 183.9,
-     "savings_zl": 1352.4,
-     "share_of_optimum": 0.978,
-     "import_kwh": 973,
-     "export_kwh": 3147,
-     "battery_out_kwh": 2036,
-     "lost_deposit_zl": 200.6
+     "bill_zl": 173.5,
+     "savings_zl": 1415.8,
+     "share_of_optimum": 0.975,
+     "trips": 18,
+     "lost_pv_kwh": 19,
+     "import_kwh": 1026,
+     "export_kwh": 3043,
+     "battery_out_kwh": 1920,
+     "wear_zl": 158.8,
+     "lost_deposit_zl": 103.6
     },
     {
-     "strategy": "mpc",
-     "bill_zl": 171.0,
-     "savings_zl": 1365.2,
-     "share_of_optimum": 0.987,
-     "import_kwh": 853,
-     "export_kwh": 3022,
-     "battery_out_kwh": 2074,
-     "lost_deposit_zl": 223.1
+     "strategy": "lp_mpc",
+     "bill_zl": 194.9,
+     "savings_zl": 1394.4,
+     "share_of_optimum": 0.961,
+     "trips": 16,
+     "lost_pv_kwh": 14,
+     "import_kwh": 930,
+     "export_kwh": 2929,
+     "battery_out_kwh": 1974,
+     "wear_zl": 188.8,
+     "lost_deposit_zl": 142.0
+    },
+    {
+     "strategy": "dp_mpc",
+     "bill_zl": 163.8,
+     "savings_zl": 1425.5,
+     "share_of_optimum": 0.982,
+     "trips": 18,
+     "lost_pv_kwh": 20,
+     "import_kwh": 1001,
+     "export_kwh": 3015,
+     "battery_out_kwh": 1961,
+     "wear_zl": 161.8,
+     "lost_deposit_zl": 142.1
     },
     {
      "strategy": "optimum",
-     "bill_zl": 153.3,
-     "savings_zl": 1382.9,
+     "bill_zl": 137.8,
+     "savings_zl": 1451.5,
      "share_of_optimum": 1.0,
-     "import_kwh": 798,
-     "export_kwh": 2961,
-     "battery_out_kwh": 2127,
-     "lost_deposit_zl": 262.5
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 944,
+     "export_kwh": 2971,
+     "battery_out_kwh": 2035,
+     "wear_zl": 166.4,
+     "lost_deposit_zl": 193.2
     }
    ]
   },
   {
-   "name": "Dom 8 kWp wschód-zachód, magazyn 5 kWh, G11",
+   "name": "8 kWp wschód-zachód, bateria 5 kWh, G11, słaba sieć (4 kW)",
    "annual_kwh": 5000,
    "planes": [
     [
@@ -229,10 +430,14 @@
    "battery": {
     "capacity_kwh": 5,
     "power_kw": 3,
-    "efficiency": 0.95,
+    "efficiency": 0.975,
     "soc_min": 0.1,
     "soc_max": 1.0,
-    "wear_zl_per_kwh": 0.1
+    "standby_kw": 0.04,
+    "resistive": 0.03,
+    "wear_zl_per_kwh": 0.1,
+    "crate_wear": 0.4,
+    "high_soc_zl_per_h": 0.01
    },
    "tariff": {
     "kind": "g11",
@@ -244,69 +449,101 @@
     "refund": 0.3,
     "theta": 0.0
    },
-   "theta": 1.0,
-   "theta_bills": {
-    "0.0": 802.3,
-    "0.5": 801.9,
-    "1.0": 801.7
+   "grid": {
+    "export_limit_kw": 4.0,
+    "trip_price": 0.15
    },
-   "pv_kwh": 7092,
-   "load_kwh": 4936,
+   "theta": 0.0,
+   "theta_bills": {
+    "0.0": 787.6,
+    "0.5": 791.5,
+    "1.0": 820.7
+   },
+   "pv_kwh": 7069,
+   "load_kwh": 4930,
    "rows": [
     {
      "strategy": "no_battery",
-     "bill_zl": 1609.3,
+     "bill_zl": 1643.5,
      "savings_zl": 0.0,
      "share_of_optimum": 0.0,
-     "import_kwh": 2890,
-     "export_kwh": 5046,
+     "trips": 263,
+     "lost_pv_kwh": 305,
+     "import_kwh": 2911,
+     "export_kwh": 4745,
      "battery_out_kwh": 0,
+     "wear_zl": 0.0,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "rule",
-     "bill_zl": 1054.2,
-     "savings_zl": 555.2,
-     "share_of_optimum": 0.687,
-     "import_kwh": 1660,
-     "export_kwh": 3681,
-     "battery_out_kwh": 1230,
+     "bill_zl": 1161.2,
+     "savings_zl": 482.3,
+     "share_of_optimum": 0.563,
+     "trips": 263,
+     "lost_pv_kwh": 305,
+     "import_kwh": 1745,
+     "export_kwh": 3329,
+     "battery_out_kwh": 1166,
+     "wear_zl": 116.1,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "agent",
-     "bill_zl": 826.3,
-     "savings_zl": 783.0,
-     "share_of_optimum": 0.969,
-     "import_kwh": 1759,
-     "export_kwh": 3782,
-     "battery_out_kwh": 1231,
+     "bill_zl": 860.9,
+     "savings_zl": 782.6,
+     "share_of_optimum": 0.914,
+     "trips": 21,
+     "lost_pv_kwh": 24,
+     "import_kwh": 1946,
+     "export_kwh": 3845,
+     "battery_out_kwh": 1150,
+     "wear_zl": 112.4,
      "lost_deposit_zl": 0.0
     },
     {
-     "strategy": "mpc",
-     "bill_zl": 821.7,
-     "savings_zl": 787.7,
-     "share_of_optimum": 0.975,
-     "import_kwh": 1708,
-     "export_kwh": 3731,
+     "strategy": "lp_mpc",
+     "bill_zl": 903.8,
+     "savings_zl": 739.7,
+     "share_of_optimum": 0.864,
+     "trips": 8,
+     "lost_pv_kwh": 9,
+     "import_kwh": 1776,
+     "export_kwh": 3681,
+     "battery_out_kwh": 1156,
+     "wear_zl": 121.9,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "dp_mpc",
+     "bill_zl": 835.9,
+     "savings_zl": 807.6,
+     "share_of_optimum": 0.944,
+     "trips": 6,
+     "lost_pv_kwh": 7,
+     "import_kwh": 2007,
+     "export_kwh": 3915,
      "battery_out_kwh": 1218,
+     "wear_zl": 120.3,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "optimum",
-     "bill_zl": 801.7,
-     "savings_zl": 807.7,
+     "bill_zl": 787.6,
+     "savings_zl": 855.9,
      "share_of_optimum": 1.0,
-     "import_kwh": 1674,
-     "export_kwh": 3694,
-     "battery_out_kwh": 1246,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 1947,
+     "export_kwh": 3860,
+     "battery_out_kwh": 1261,
+     "wear_zl": 121.8,
      "lost_deposit_zl": 0.0
     }
    ]
   },
   {
-   "name": "Dom 4 kWp na południe, magazyn 15 kWh, taryfa dynamiczna",
+   "name": "4 kWp na południe, bateria 15 kWh, taryfa dynamiczna, mocna sieć",
    "annual_kwh": 6000,
    "planes": [
     [
@@ -318,10 +555,14 @@
    "battery": {
     "capacity_kwh": 15,
     "power_kw": 7.5,
-    "efficiency": 0.95,
+    "efficiency": 0.975,
     "soc_min": 0.1,
     "soc_max": 1.0,
-    "wear_zl_per_kwh": 0.1
+    "standby_kw": 0.04,
+    "resistive": 0.03,
+    "wear_zl_per_kwh": 0.1,
+    "crate_wear": 0.4,
+    "high_soc_zl_per_h": 0.01
    },
    "tariff": {
     "kind": "dynamic",
@@ -333,63 +574,95 @@
     "refund": 0.3,
     "theta": 0.0
    },
+   "grid": {
+    "export_limit_kw": null,
+    "trip_price": 0.15
+   },
    "theta": 0.0,
    "theta_bills": {
-    "0.0": 1892.8,
-    "0.5": 1941.6,
-    "1.0": 2455.0
+    "0.0": 1955.4,
+    "0.5": 2009.6,
+    "1.0": 2409.6
    },
-   "pv_kwh": 4226,
-   "load_kwh": 5927,
+   "pv_kwh": 4213,
+   "load_kwh": 5920,
    "rows": [
     {
      "strategy": "no_battery",
-     "bill_zl": 4062.5,
+     "bill_zl": 4059.4,
      "savings_zl": 0.0,
      "share_of_optimum": 0.0,
-     "import_kwh": 3963,
-     "export_kwh": 2262,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 3959,
+     "export_kwh": 2252,
      "battery_out_kwh": 0,
+     "wear_zl": 0.0,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "rule",
-     "bill_zl": 2709.2,
-     "savings_zl": 1353.2,
+     "bill_zl": 2746.0,
+     "savings_zl": 1313.4,
      "share_of_optimum": 0.624,
-     "import_kwh": 2339,
-     "export_kwh": 453,
-     "battery_out_kwh": 1623,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 2403,
+     "export_kwh": 387,
+     "battery_out_kwh": 1556,
+     "wear_zl": 112.7,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "agent",
-     "bill_zl": 2442.8,
-     "savings_zl": 1619.7,
-     "share_of_optimum": 0.746,
-     "import_kwh": 2872,
-     "export_kwh": 958,
-     "battery_out_kwh": 1971,
+     "bill_zl": 2172.8,
+     "savings_zl": 1886.7,
+     "share_of_optimum": 0.897,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 3140,
+     "export_kwh": 1039,
+     "battery_out_kwh": 2635,
+     "wear_zl": 217.7,
      "lost_deposit_zl": 0.0
     },
     {
-     "strategy": "mpc",
-     "bill_zl": 1989.3,
-     "savings_zl": 2073.1,
-     "share_of_optimum": 0.955,
-     "import_kwh": 3158,
-     "export_kwh": 1117,
-     "battery_out_kwh": 3146,
+     "strategy": "lp_mpc",
+     "bill_zl": 2110.4,
+     "savings_zl": 1949.1,
+     "share_of_optimum": 0.926,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 3302,
+     "export_kwh": 1103,
+     "battery_out_kwh": 3168,
+     "wear_zl": 321.9,
+     "lost_deposit_zl": 0.0
+    },
+    {
+     "strategy": "dp_mpc",
+     "bill_zl": 2039.9,
+     "savings_zl": 2019.5,
+     "share_of_optimum": 0.96,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 3219,
+     "export_kwh": 1055,
+     "battery_out_kwh": 3092,
+     "wear_zl": 256.5,
      "lost_deposit_zl": 0.0
     },
     {
      "strategy": "optimum",
-     "bill_zl": 1892.8,
-     "savings_zl": 2169.7,
+     "bill_zl": 1955.4,
+     "savings_zl": 2104.1,
      "share_of_optimum": 1.0,
-     "import_kwh": 3033,
-     "export_kwh": 984,
-     "battery_out_kwh": 3228,
+     "trips": 0,
+     "lost_pv_kwh": 0,
+     "import_kwh": 3121,
+     "export_kwh": 962,
+     "battery_out_kwh": 3127,
+     "wear_zl": 260.2,
      "lost_deposit_zl": 0.0
     }
    ]

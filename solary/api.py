@@ -105,12 +105,14 @@ def battery(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-
             kwh_year: float | None = Query(None, gt=0, le=1_000_000),
             battery_kwh: float = Query(10.0, gt=0, le=200), battery_kw: float | None = Query(None, gt=0, le=100),
             annual_kwh: float = Query(4000.0, gt=0, le=100_000), tariff: str = Query("g11", pattern="^(g11|dynamic)$"),
-            soc: float = Query(0.5, ge=0, le=1), plan: bool = True):
+            soc: float = Query(0.5, ge=0, le=1), export_limit: float | None = Query(None, gt=0, le=100),
+            plan: bool = True):
     """Battery for a house with PV `planes` ("kWp:tilt:azimuth,..."): bills over the test year
     without a battery, with the usual inverter, with the RL agent and at the optimum; and the
-    agent's plan from now to the end of tomorrow. `kwh_year` rescales PV to the roof analysis."""
+    agent's plan from now to the end of tomorrow. `kwh_year` rescales PV to the roof analysis;
+    `export_limit` (kW) models a weak grid where the inverter trips above that export."""
     from .battery.data import BatteryDataError
-    from .battery.model import Battery, Tariff
+    from .battery.model import Battery, Grid, Tariff
     from .battery.plan import battery_report
 
     try:
@@ -120,7 +122,8 @@ def battery(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-
     store = Battery(capacity_kwh=battery_kwh, power_kw=battery_kw or battery_kwh / 2)
     try:
         with _lock:
-            return battery_report(lat, lon, pv, annual_kwh, store, Tariff(kind=tariff), soc, kwh_year, plan)
+            return battery_report(lat, lon, pv, annual_kwh, store, Tariff(kind=tariff), Grid(export_limit_kw=export_limit),
+                                  soc, kwh_year, plan)
     except BatteryDataError as e:
         raise HTTPException(502, str(e)) from e
     except SolaryError as e:

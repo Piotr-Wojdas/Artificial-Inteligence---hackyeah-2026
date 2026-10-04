@@ -3,7 +3,7 @@
     python -m solary.battery plan "Mariacka 1, Katowice" --battery-kwh 10 --annual-kwh 4000
     python -m solary.battery plan --lat 50.26 --lon 19.02 --kwp 6 --tariff dynamic
     python -m solary.battery evaluate          # all strategies on the test year -> evaluation.json
-    python -m solary.battery train --steps 2000000   (needs: uv sync --group rl)
+    python -m solary.battery train --steps 3000000   (needs: uv sync --group rl)
 
 With an address the panels come from the roof analysis (python -m solary), so they are the ones
 our layout chose; without roof data (or with --lat/--lon) from --kwp, --tilt and --azimuth.
@@ -22,7 +22,7 @@ from ..errors import SolaryError
 from .model import Battery, Tariff
 
 STRATEGY_LABELS = {"no_battery": "bez magazynu", "rule": "zwykły falownik", "agent": "agent RL",
-                   "mpc": "planowanie MPC", "optimum": "optimum (zna przyszłość)"}
+                   "lp_mpc": "MPC liniowe", "dp_mpc": "MPC nieliniowe", "optimum": "optimum (zna przyszłość)"}
 
 
 def planes_from_roof(address: str | None, lat: float | None, lon: float | None, panels: int | None, cfg):
@@ -54,13 +54,15 @@ def main() -> int:
     p.add_argument("--annual-kwh", type=float, default=4000.0, help="the household's yearly consumption")
     p.add_argument("--tariff", choices=("g11", "dynamic"), default="g11")
     p.add_argument("--soc", type=float, default=0.5, help="battery charge now, 0..1")
+    p.add_argument("--export-limit", type=float, help="weak grid: the inverter trips above this export (kW) "
+                   "when the grid is full of PV (default: a strong grid)")
     p.add_argument("--no-plan", action="store_true", help="only the yearly savings")
     p.add_argument("--json", action="store_true")
     e = sub.add_parser("evaluate", help="all strategies on the test year (writes evaluation.json)")
-    e.add_argument("--no-mpc", action="store_true", help="skip MPC (the slowest, about a minute per house)")
+    e.add_argument("--no-mpc", action="store_true", help="skip both MPCs (the slowest, a few minutes per house)")
     t = sub.add_parser("train", help="train the agent with PPO (needs: uv sync --group rl)")
-    t.add_argument("--steps", type=int, default=2_000_000, help="PPO steps after imitation (default 2,000,000)")
-    t.add_argument("--imitation-weeks", type=int, default=320, help="MPC weeks to imitate first (0 = PPO alone)")
+    t.add_argument("--steps", type=int, default=3_000_000, help="PPO steps after imitation (default 3,000,000)")
+    t.add_argument("--imitation-weeks", type=int, default=800, help="planner weeks to imitate first (0 = PPO alone)")
     t.add_argument("--out", type=Path)
     t.add_argument("--envs", type=int, default=8)
     t.add_argument("--seed", type=int, default=0)
@@ -74,8 +76,8 @@ def main() -> int:
             train(args.steps, args.out or POLICY_PATH, n_envs=args.envs, seed=args.seed,
                   imitation_weeks=args.imitation_weeks)
         elif args.command == "evaluate":
-            from .evaluate import evaluate
-            evaluate(mpc=not args.no_mpc)
+            from .evaluate import STRATEGIES, evaluate
+            evaluate(strategies=tuple(s for s in STRATEGIES if not (args.no_mpc and s.endswith("mpc"))))
         else:
             return _plan(args)
     except SolaryError as err:
@@ -85,6 +87,7 @@ def main() -> int:
 
 
 def _plan(args) -> int:
+    from .model import Grid
     from .plan import battery_report
     cfg = dataclasses.replace(CONFIG, layout=args.layout) if args.layout else CONFIG
     roof = None
@@ -97,27 +100,30 @@ def _plan(args) -> int:
     else:
         raise SolaryError("no roof data here: give --lat and --lon (and --kwp, --tilt, --azimuth)")
     battery = Battery(capacity_kwh=args.battery_kwh, power_kw=args.battery_kw or args.battery_kwh / 2)
-    res = battery_report(lat, lon, planes, args.annual_kwh, battery, Tariff(kind=args.tariff), args.soc,
-                         kwh_year, plan=not args.no_plan)
+    res = battery_report(lat, lon, planes, args.annual_kwh, battery, Tariff(kind=args.tariff),
+                         Grid(export_limit_kw=args.export_limit), args.soc, kwh_year, plan=not args.no_plan)
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=1))
         return 0
     y = res["year"]
     pv = ", ".join(f"{k:g} kWp {t:.0f}° az {a:.0f}°" for k, t, a in planes)
     print(f"House: {lat:.5f}, {lon:.5f} | PV {pv} | battery {battery.capacity_kwh:g} kWh / {battery.power_kw:g} kW | "
-          f"{args.annual_kwh:,.0f} kWh a year | tariff {args.tariff}")
+          f"{args.annual_kwh:,.0f} kWh a year | tariff {args.tariff} | "
+          + (f"weak grid: trips above {args.export_limit:g} kW" if args.export_limit else "strong grid"))
     print(f"\nTest year {y['period'][0]} .. {y['period'][1]}: PV {y['pv_kwh']:,} kWh, consumption {y['load_kwh']:,} kWh")
-    print("  strategy                     bill a year   saved     of the optimum")
+    print("  strategy                     bill a year   saved   of the optimum   inverter trips")
     for r in y["rows"]:
         share = f"{r['share_of_optimum']:.0%}" if r["share_of_optimum"] is not None else ""
-        print(f"  {STRATEGY_LABELS.get(r['strategy'], r['strategy']):27s} {r['bill_zl']:9,.0f} zł {r['savings_zl']:7,.0f} zł  {share:>8}")
+        print(f"  {STRATEGY_LABELS.get(r['strategy'], r['strategy']):27s} {r['bill_zl']:9,.0f} zł {r['savings_zl']:7,.0f} zł"
+              f"  {share:>8}   {r['trips']:6d} ({r['lost_pv_kwh']:,} kWh lost)")
     plan = res["plan"]
     if plan and plan["steps"]:
         now = plan["now"]
         print(f"\nNow ({now['time'][11:16]}): {now['effect_label']} (the {plan['controller']} chose: {now['action_label']}); "
               f"prices published until {plan['prices_until']}")
         print(f"Plan to the end of tomorrow: {plan['cost_zl']:.2f} zł = bought {plan['buy_zl']:.2f} - sold "
-              f"{plan['sell_zl']:.2f} + battery wear {plan['wear_zl']:.2f} (the usual inverter: {plan['rule_cost_zl']:.2f} zł)")
+              f"{plan['sell_zl']:.2f} + battery wear {plan['wear_zl']:.2f}, {plan['trips']} trips "
+              f"(the usual inverter: {plan['rule_cost_zl']:.2f} zł, {plan['rule_trips']} trips)")
         print("  hour   RCE zł/kWh   PV kWh  use kWh  battery  action")
         for i in range(0, len(plan["steps"]), 4):
             hour = plan["steps"][i:i + 4]

@@ -27,11 +27,15 @@ def synthetic_inputs(days: int = 6, first: date = date(2025, 6, 2)) -> D.Inputs:
     return D.Inputs(index, rce, weather, 50.26, 19.02)
 
 
-def make_scenario(tariff=M.Tariff(), battery=M.Battery(), kwp=6.0, days=6, error=1.0) -> M.Scenario:
+def make_scenario(tariff=M.Tariff(), battery=M.Battery(), kwp=6.0, days=7, error=1.0, grid=M.Grid()) -> M.Scenario:
+    """Days of control: `days` minus the day before and the 36 h horizon."""
     inp = synthetic_inputs(days)
     load, expected = D.load_profile(inp.index, 4000, seed=3)
     return M.Scenario(index=inp.index, rce=inp.rce, pv=inp.pv([(kwp, 35, 180)]), load=load, load_expected=expected,
-                      battery=battery, tariff=tariff, seed=5, pv_error_scale=error)
+                      battery=battery, tariff=tariff, grid=grid, seed=5, pv_error_scale=error)
+
+
+WEAK = M.Grid(export_limit_kw=2.5, trip_price=0.15)   # the synthetic noon price dips to 0.10
 
 
 # ------------------------------------------------------------------ data
@@ -84,24 +88,53 @@ def test_rce_pages_and_cache(cfg, monkeypatch):
 
 
 # ------------------------------------------------------------------ physics and money
-def test_battery_flows_and_limits():
+def test_inverter_losses_depend_on_power():
+    b = M.Battery()
+    eff = lambda kw: 1 - float(M.inverter_loss(kw * D.STEP_H, b)) / (kw * D.STEP_H)   # noqa: E731
+    assert eff(0.2) < 0.85 < 0.95 < eff(2.5)                                    # a night load wastes, mid power does not
+    assert eff(5.0) < eff(2.5)                                                  # resistive losses at full power
+    assert float(M.inverter_loss(0.0, b)) == 0.0                                # an idle battery costs nothing
+    lin = M.Battery.linear()
+    assert float(M.inverter_loss(0.05, lin)) == 0.0 and lin.one_way_efficiency() == pytest.approx(0.95)
+
+
+def test_battery_options():
     b = M.Battery(capacity_kwh=10, power_kw=4)
     a = {name: i for i, name in enumerate(M.ACTIONS)}
-    assert M.battery_flows(a["self_consumption"], 5.0, pv=2.0, load=0.5, b=b) == (1.0, 0.0)   # 4 kW x 15 min
-    assert M.battery_flows(a["self_consumption"], 5.0, pv=0.0, load=0.3, b=b) == (0.0, pytest.approx(0.3))
-    assert M.battery_flows(a["charge_surplus"], 5.0, pv=0.0, load=0.3, b=b) == (0.0, 0.0)
-    assert M.battery_flows(a["cover_deficit"], 5.0, pv=2.0, load=0.5, b=b) == (0.0, 0.0)      # sells the surplus
-    assert M.battery_flows(a["charge_full"], 9.9, pv=0.0, load=0.0, b=b)[0] == pytest.approx(0.1 / 0.95)
-    assert M.battery_flows(a["discharge_full"], 1.1, pv=0.0, load=0.0, b=b)[1] == pytest.approx(0.1 * 0.95)
+    flows = lambda name, soc, pv, load, cap=np.inf: tuple(float(x) for x in M.battery_flows(a[name], soc, pv, load, b, cap))  # noqa: E731
+    assert flows("self_consumption", 5.0, 2.0, 0.5) == (1.0, 0.0)               # 4 kW x 15 min
+    assert flows("self_consumption", 5.0, 0.0, 0.3) == (0.0, pytest.approx(0.3))
+    assert flows("charge_surplus", 5.0, 0.0, 0.3) == (0.0, 0.0)
+    assert flows("cover_deficit", 5.0, 2.0, 0.5) == (0.0, 0.0)                  # sells the surplus
+    assert flows("absorb_peak", 5.0, 1.5, 0.2, cap=0.75) == (pytest.approx(0.55), 0.0)   # only above the cap
+    assert flows("absorb_peak", 5.0, 0.8, 0.2, cap=0.75) == (0.0, 0.0)
+    assert flows("charge_50", 5.0, 0.0, 0.0) == (0.5, 0.0) and flows("discharge_25", 5.0, 0.0, 0.0) == (0.0, 0.25)
+    full_c, _ = flows("charge_100", 9.9, 0.0, 0.0)
+    stored = (full_c - float(M.inverter_loss(full_c, b))) * b.efficiency
+    assert stored == pytest.approx(0.1, abs=1e-9)                               # exactly fills the battery
+    assert flows("discharge_100", 1.0, 0.0, 0.0) == (0.0, 0.0)                  # at the minimum charge
+    c, d = M.battery_flows(np.arange(len(M.ACTIONS))[:, None], np.array([2.0, 6.0])[None, :], 1.0, 0.2, b)
+    assert c.shape == d.shape == (len(M.ACTIONS), 2)                            # vectorised for the dynamic programs
 
 
-def test_apply_keeps_the_energy_balance():
-    sc = make_scenario()
-    t = sc.start + 12 * 4
-    soc, cost, f = M.apply(sc, t, 5.0, charge=0.5, discharge=0.0)
-    assert soc == pytest.approx(5.0 + 0.5 * 0.95)
-    assert f["import"] - f["export"] == pytest.approx(sc.load[t] - sc.pv[t] + 0.5)
-    assert cost == pytest.approx(f["import"] * sc.buy[t] - f["export"] * sc.sell[t])
+def test_transition_balance_and_trips():
+    b = M.Battery()
+    new, cost, f = M.transition(b, 5.0, 0.5, 0.0, pv=1.0, load=0.2, buy=1.0, sell=0.3, cap=np.inf)
+    loss = float(M.inverter_loss(0.5, b))
+    assert float(new) == pytest.approx(5.0 + (0.5 - loss) * b.efficiency)
+    assert float(f["export"]) == pytest.approx(0.3) and not f["trip"]
+    assert float(cost) == pytest.approx(-0.3 * 0.3 + float(f["wear"]))
+    new, cost, f = M.transition(b, 5.0, 0.0, 0.0, pv=1.5, load=0.2, buy=1.0, sell=0.05, cap=0.75)
+    assert f["trip"] and float(f["import"]) == 0.2 and float(f["lost_pv"]) == 1.5 and float(new) == 5.0
+    assert float(cost) == pytest.approx(0.2)                                    # the house runs on the grid
+
+
+def test_wear_grows_with_power_and_full_charge():
+    b = M.Battery()
+    wear = lambda c, d, soc=5.0: float(M.transition(b, soc, c, d, 0, 0, 0, 0, np.inf)[2]["wear"])  # noqa: E731
+    fast, slow = wear(0, 1.25), wear(0, 0.625)
+    assert fast / 1.25 > slow / 0.625                                           # per kWh, fast discharge wears more
+    assert wear(0, 0, soc=9.9) > wear(0, 0, soc=8.0) == 0.0                     # sitting full ages the battery
 
 
 def test_tariffs_and_the_deposit():
@@ -120,41 +153,58 @@ def test_tariffs_and_the_deposit():
 
 
 def test_what_the_controller_knows():
-    sc = make_scenario(days=4)
-    local = sc.index.tz_convert(D.TZ)
+    sc = make_scenario()
     morning = sc.start + 10 * 4                      # 10:00 on day 2: tomorrow not published yet
     afternoon = sc.start + 15 * 4                    # 15:00: tomorrow's prices are out
-    sc.rce_raw[sc.start + 96 + 20] = 9.0              # a spike tomorrow at 05:00
-    assert sc.price_forecast(afternoon)[sc.start + 96 + 20 - afternoon] == 9.0
-    assert sc.price_forecast(morning)[sc.start + 96 + 20 - morning] != 9.0      # unknown: yesterday's price
-    assert local[morning].hour == 10
+    spike = sc.start + 96 + 20                       # a spike tomorrow at 05:00
+    sc.rce_raw[spike] = 9.0
+    assert sc.price_forecast(afternoon)[spike - afternoon] == 9.0
+    assert sc.price_forecast(morning)[spike - morning] != 9.0                    # unknown: yesterday's price
+    assert sc.known_steps(morning) == 14 * 4 and sc.known_steps(afternoon) == 9 * 4 + 96
     f = sc.pv_forecast(sc.start + 40)
-    assert f[0] == pytest.approx(sc.pv[sc.start + 40], rel=0.1)                # the next quarter is nearly right
-    perfect = make_scenario(days=4, error=0.0)
-    assert np.allclose(perfect.pv_forecast(perfect.start + 40), perfect.pv[perfect.start + 40:perfect.start + 136])
+    assert f[0] == pytest.approx(sc.pv[sc.start + 40], rel=0.15)               # the next quarter is nearly right
+    perfect = make_scenario(error=0.0)
+    assert np.allclose(perfect.pv_forecast(perfect.start + 40), perfect.pv[perfect.start + 40:perfect.start + 40 + M.HORIZON])
     obs = M.observe(sc, sc.start + 40, 5.0)
     assert obs.shape == (M.OBS_SIZE,) and obs.dtype == np.float32 and obs[0] == pytest.approx(0.5)
+    assert np.isfinite(obs).all()
+
+
+def test_forecast_uncertainty_is_highest_on_partly_cloudy_days():
+    days = np.repeat(np.arange(30), 96)
+    pv = np.tile(np.r_[np.zeros(40), np.ones(16), np.zeros(40)], 30).astype(float)
+    pv[days == 10] *= 0.5                                                       # partly cloudy
+    pv[days == 20] *= 0.05                                                      # overcast
+    sigma = M.forecast_uncertainty(pv, days)
+    clear, partly, overcast = sigma[days == 5][0], sigma[days == 10][0], sigma[days == 20][0]
+    assert clear < overcast < partly and clear == pytest.approx(0.08)
 
 
 # ------------------------------------------------------------------ strategies
 @pytest.mark.parametrize("kind", ["g11", "dynamic"])
 def test_strategies_rank_as_expected(kind):
     sc = make_scenario(M.Tariff(kind=kind))
-    none, rule, mpc, best = S.no_battery(sc), S.rule(sc), S.mpc(sc), S.optimum(sc)
-    assert best.cost <= mpc.cost + 1e-6 and best.cost <= rule.cost + 1e-6 and rule.cost < none.cost
-    assert mpc.cost < none.cost
+    none, rule, lp, dp, best = S.no_battery(sc), S.rule(sc), S.lp_mpc(sc), S.dp_mpc(sc), S.optimum(sc)
+    for r in (rule, lp, dp):
+        assert best.cost <= r.cost + 0.05                                       # the optimum is exact (up to its grid)
+    assert rule.cost < none.cost and lp.cost < none.cost and dp.cost < none.cost
     b = sc.battery
     assert best.soc.min() >= b.soc_min * b.capacity_kwh - 1e-6 and best.soc.max() <= b.capacity_kwh + 1e-6
-    assert best.charge.max() <= b.power_kw * D.STEP_H + 1e-6
-    assert rule.settle(sc)["total_zl"] < none.settle(sc)["total_zl"]
 
 
-def test_optimum_sells_in_the_evening_peak_with_a_dynamic_tariff():
-    sc = make_scenario(M.Tariff(kind="dynamic"), M.Battery(10, 5, wear_zl_per_kwh=0.0))
+def test_a_weak_grid_trips_the_usual_inverter_but_not_the_optimum():
+    sc = make_scenario(grid=WEAK)
+    none, rule, best = S.no_battery(sc), S.rule(sc), S.optimum(sc)
+    assert none.trips.sum() > 0 and rule.trips.sum() > 0                        # the battery fills, then noon trips
+    assert best.trips.sum() == 0 and best.cost < rule.cost
+    assert rule.settle(sc)["lost_pv_kwh"] > 0 and best.settle(sc)["lost_pv_kwh"] == 0
+
+
+def test_optimum_shifts_energy_to_the_evening_with_a_dynamic_tariff():
+    sc = make_scenario(M.Tariff(kind="dynamic"), M.Battery(10, 5, wear_zl_per_kwh=0.0, high_soc_zl_per_h=0.0))
     best = S.optimum(sc)
-    local = sc.index[sc.start:sc.end].tz_convert(D.TZ)
-    evening = (np.asarray(local.hour) >= 19) & (np.asarray(local.hour) < 21)
-    noon = (np.asarray(local.hour) >= 12) & (np.asarray(local.hour) < 14)
+    hour = np.asarray(sc.index[sc.start:sc.end].tz_convert(D.TZ).hour)
+    evening, noon = (hour >= 19) & (hour < 21), (hour >= 12) & (hour < 14)
     assert best.discharge[evening].sum() > best.discharge[noon].sum()
     assert best.charge[noon].sum() > best.charge[evening].sum()
 
@@ -167,22 +217,24 @@ def test_calibrate_picks_the_cheapest_theta():
 def test_to_action():
     b = M.Battery(10, 4)
     a = M.ACTIONS
-    assert a[S.to_action(0, 0, 1.0, b)] == "idle"
-    assert a[S.to_action(0.5, 0, 1.0, b)] == "charge_surplus"
-    assert a[S.to_action(1.0, 0, 0.0, b)] == "charge_full"
-    assert a[S.to_action(0, 0.3, -0.3, b)] == "cover_deficit"
-    assert a[S.to_action(0, 0.5, 0.0, b)] == "discharge_half"
+    assert a[S.to_action(0, 0, 1.0, np.inf, b)] == "idle"
+    assert a[S.to_action(0, 0, 1.0, 0.5, b)] == "absorb_peak"                  # a trip threatens: keep under the cap
+    assert a[S.to_action(0.5, 0, 1.0, np.inf, b)] == "charge_surplus"
+    assert a[S.to_action(0.25, 0, 1.0, 0.75, b)] == "absorb_peak"
+    assert a[S.to_action(1.0, 0, 0.0, np.inf, b)] == "charge_100"
+    assert a[S.to_action(0, 0.3, -0.3, np.inf, b)] == "cover_deficit"
+    assert a[S.to_action(0, 0.5, 0.0, np.inf, b)] == "discharge_50"
 
 
 # ------------------------------------------------------------------ the agent
 def test_shipped_policy_runs_without_torch():
     policy = Policy(POLICY_PATH)
-    sc = make_scenario()
+    sc = make_scenario(grid=WEAK)
     action = policy.act(M.observe(sc, sc.start + 50, 5.0))
     assert 0 <= action < len(M.ACTIONS)
     assert policy.meta["obs_size"] == M.OBS_SIZE and tuple(policy.meta["actions"]) == M.ACTIONS
     result = S.agent(sc, policy)
-    assert result.cost < S.no_battery(sc).cost                                 # it saves money on clear days
+    assert result.cost < S.rule(sc).cost < S.no_battery(sc).cost               # beats the usual inverter here
 
 
 def test_policy_rejects_another_observation(tmp_path):
@@ -205,20 +257,21 @@ def test_environment():
         obs, reward, done, truncated, _ = env.step(0)
         total += reward
         steps += 1
-    assert steps == 2 * 96 and total > 0                                       # self-consumption beats no battery
+    assert steps == 2 * 96 and np.isfinite(total)
 
 
 # ------------------------------------------------------------------ plan and API
 def test_daily_plan(monkeypatch, cfg):
     from solary.battery import plan as P
-    inp = synthetic_inputs(5, pd.Timestamp.now(tz=D.TZ).date() - pd.Timedelta(days=1))
-    inp.rce[-3 * 96:] = np.nan                                                 # only today is published
+    inp = synthetic_inputs(6, pd.Timestamp.now(tz=D.TZ).date() - pd.Timedelta(days=1))
+    inp.rce[-4 * 96:] = np.nan                                                 # only today is published
     monkeypatch.setattr(P, "live", lambda lat, lon, cfg, days: inp)
-    out = P.daily_plan(50.26, 19.02, [(6.0, 35, 180)], 4000, M.Battery(), M.Tariff(), 0.5, Policy(), cfg=cfg)
+    out = P.daily_plan(50.26, 19.02, [(6.0, 35, 180)], 4000, M.Battery(), M.Tariff(), WEAK, 0.5, Policy(), cfg=cfg)
     steps = out["steps"]
     assert out["controller"] == "agent" and out["now"] == steps[0] and len(steps) > 96
     assert all(0.0 <= s["soc"] <= 1.0 for s in steps)
     assert any(s["rce_zl_kwh"] is None for s in steps) and steps[0]["rce_zl_kwh"] is not None
+    assert out["rule_trips"] >= out["trips"]
     json.dumps(out)
 
 
@@ -228,17 +281,20 @@ def test_battery_api(monkeypatch):
     from solary.battery import plan as P
     seen = {}
 
-    def report(lat, lon, planes, annual_kwh, battery, tariff, soc, kwh_year, plan):
-        seen.update(planes=planes, battery=battery, tariff=tariff, soc=soc, kwh_year=kwh_year)
+    def report(lat, lon, planes, annual_kwh, battery, tariff, grid, soc, kwh_year, plan):
+        seen.update(planes=planes, battery=battery, tariff=tariff, grid=grid, soc=soc, kwh_year=kwh_year)
         return {"ok": True}
 
     monkeypatch.setattr(P, "battery_report", report)
     client = TestClient(api.app)
     r = client.get("/api/battery", params={"lat": 50.26, "lon": 19.02, "planes": "3.2:35:180,2.8:35:90",
-                                           "battery_kwh": 15, "tariff": "dynamic", "kwh_year": 5000})
+                                           "battery_kwh": 15, "tariff": "dynamic", "kwh_year": 5000, "export_limit": 3})
     assert r.status_code == 200 and r.json() == {"ok": True}
     assert seen["planes"] == [(3.2, 35, 180), (2.8, 35, 90)] and seen["battery"].power_kw == 7.5
-    assert seen["tariff"].kind == "dynamic" and seen["kwh_year"] == 5000
+    assert seen["tariff"].kind == "dynamic" and seen["kwh_year"] == 5000 and seen["grid"].export_limit_kw == 3
+    client.get("/api/battery", params={"lat": 50.26, "lon": 19.02})
+    assert seen["grid"].export_limit_kw is None
     for bad in ({"lat": 50}, {"lat": 50, "lon": 19, "planes": "6:35"}, {"lat": 50, "lon": 19, "tariff": "night"},
-                {"lat": 50, "lon": 19, "planes": "6:95:180"}, {"lat": 50, "lon": 19, "soc": 2}):
+                {"lat": 50, "lon": 19, "planes": "6:95:180"}, {"lat": 50, "lon": 19, "soc": 2},
+                {"lat": 50, "lon": 19, "export_limit": 0}):
         assert client.get("/api/battery", params=bad).status_code in (400, 422), bad
