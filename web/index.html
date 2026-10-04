@@ -45,6 +45,12 @@
     
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+
+    /* Battery plan series */
+    --s-price: #7c3aed;
+    --s-pv: #eab308;
+    --s-load: #2563eb;
+    --s-soc: #16a34a;
   }
 
   * { box-sizing: border-box; }
@@ -1067,6 +1073,42 @@
   }
 
   /* Print Styles */
+  /* Battery Storage (RL agent) */
+  .battery-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .battery-card .econ-desc {
+    margin: 0;
+  }
+  .battery-card input[type=number] {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-main);
+  }
+  .battery-now {
+    background: var(--yellow-50);
+    border: 1px solid var(--yellow-200);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 14px;
+    margin: 0;
+  }
+  .plan svg { touch-action: pan-y; }
+  .plan .line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .plan .wash { stroke: none; opacity: .15; }
+  .plan .cross { stroke: var(--text-faint); stroke-width: 1; }
+  .plan text.title { fill: var(--text-main); font-weight: 600; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .tip.wide { white-space: normal; width: 230px; transform: translate(-50%, 0); }
+  .battery-note { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0; }
+
   @media print {
     body { background: #fff !important; color: #000 !important; font-size: 12pt; }
     .top-nav, .search-card, .demo-presets, .settings-strip, .stepper-btns,
@@ -1454,6 +1496,57 @@
         <p class="image-meta" id="segNote" style="margin-top:12px;"></p>
       </section>
 
+      <!-- Battery Storage controlled by the RL agent -->
+      <section class="card battery-card" id="batteryCard" hidden>
+        <div>
+          <h3 class="section-title">Magazyn energii sterowany przez AI</h3>
+          <p class="econ-desc">Agent nauczony metodą uczenia ze wzmocnieniem co 15 minut decyduje, czy ładować baterię, zasilać z niej dom, czy sprzedawać prąd do sieci. Patrzy na ceny RCE z PSE (na dziś, po 14:00 także na jutro), prognozę pogody dla Twojego dachu i jej niepewność oraz typowe zużycie domu. Zna też fizykę: straty falownika przy małej mocy, zużycie baterii i to, że w słoneczne południe słaba sieć wyłącza falownik, gdy oddaje się za dużo.</p>
+        </div>
+        <div class="generic-inputs">
+          <div class="input-group">
+            <label for="bKwh">Pojemność</label>
+            <select id="bKwh"><option value="5">5 kWh</option><option value="10" selected>10 kWh</option><option value="15">15 kWh</option><option value="20">20 kWh</option></select>
+          </div>
+          <div class="input-group">
+            <label for="bUse">Zużycie rocznie (kWh)</label>
+            <input type="number" id="bUse" value="4000" min="500" max="50000" step="100" style="width:110px">
+          </div>
+          <div class="input-group">
+            <label for="bTariff">Taryfa</label>
+            <select id="bTariff"><option value="g11">G11, stała cena</option><option value="dynamic">dynamiczna, ceny giełdowe</option></select>
+          </div>
+          <div class="input-group">
+            <label for="bSoc">Bateria teraz</label>
+            <select id="bSoc"><option value="0.1">10%</option><option value="0.5" selected>50%</option><option value="0.9">90%</option></select>
+          </div>
+          <div class="input-group">
+            <label for="bGrid">Sieć</label>
+            <select id="bGrid"><option value="">mocna, falownik się nie wyłącza</option><option value="3">słaba: wyłącza powyżej 3 kW</option><option value="4">słaba: wyłącza powyżej 4 kW</option><option value="5">słaba: wyłącza powyżej 5 kW</option></select>
+          </div>
+          <button class="btn-search" id="bGo" type="button" style="padding:10px 20px;">Policz magazyn</button>
+        </div>
+        <div id="bBusy" class="loading-card" role="status" hidden>
+          <div class="spinner"></div>
+          <div>
+            <div class="loading-text">Liczę cały rok na prawdziwych cenach i pogodzie…</div>
+            <div class="loading-subtext">Za pierwszym razem około pół minuty.</div>
+          </div>
+        </div>
+        <div id="bError" class="notice err" role="alert" hidden></div>
+        <div id="bResult" style="display:flex; flex-direction:column; gap:14px" hidden>
+          <p class="battery-now" id="bNow"></p>
+          <div class="legend" id="bLegend"></div>
+          <div class="chart plan" id="bChart"><div class="tip wide" id="bTip"></div></div>
+          <details>
+            <summary>Pokaż plan jako tabelę</summary>
+            <div class="table-scroll"><table id="bPlanTable"></table></div>
+          </details>
+          <h3 class="section-title" style="margin:6px 0 0;">Rachunek za rok z magazynem</h3>
+          <div class="table-scroll"><table id="bYear"></table></div>
+          <p class="battery-note" id="bNote"></p>
+        </div>
+      </section>
+
       <!-- Attribution Footer -->
       <footer>
         <p id="attribution"></p>
@@ -1654,6 +1747,10 @@ function show() {
   $('generic').hidden = d.roof_available;
   $('segCard').hidden = !d.roof_available;
   
+  $('batteryCard').hidden = !d.roof_available;
+  if (!d.roof_available) battery = null;
+  if (battery && battery.key !== batteryKey()) { $('bResult').hidden = true; battery = null; }
+
   if (d.roof_available) {
     showRoof(d);
   } else {
@@ -1952,6 +2049,180 @@ function drawChart(monthly) {
   })));
 }
 
+// ---- battery: yearly bills and the agent's plan for today and tomorrow
+const STRATEGY = { no_battery: 'Bez magazynu', rule: 'Zwykły falownik (autokonsumpcja)', agent: 'Agent AI (uczenie ze wzmocnieniem)',
+  lp_mpc: 'Planowanie liniowe (MPC)', dp_mpc: 'Planowanie nieliniowe (MPC)', optimum: 'Optimum, gdyby znać przyszłość' };
+let battery = null, batteryRequest = 0;
+
+function batteryKey() {
+  const d = data;
+  return d && d.roof_available ? `${d.building.lat},${d.building.lon},${d.selected.panels}` : '';
+}
+
+async function loadBattery() {
+  const d = data;
+  if (!d || !d.roof_available) return;
+  const mine = ++batteryRequest;
+  const params = {
+    lat: d.building.lat, lon: d.building.lon,
+    planes: d.selected.per_segment.map((r) => `${r.kwp}:${r.pitch_deg}:${r.azimuth_deg}`).join(','),
+    kwh_year: d.selected.kwh_year, battery_kwh: $('bKwh').value, annual_kwh: $('bUse').value,
+    tariff: $('bTariff').value, soc: $('bSoc').value,
+  };
+  if ($('bGrid').value) params.export_limit = $('bGrid').value;
+  $('bBusy').hidden = false; $('bError').hidden = true; $('bGo').disabled = true;
+  try {
+    const r = await fetch('/api/battery?' + new URLSearchParams(params));
+    const body = await r.json().catch(() => ({}));
+    if (mine !== batteryRequest) return;
+    if (!r.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Nie udało się policzyć magazynu.');
+    battery = { ...body, key: batteryKey() };
+    showBattery(battery);
+  } catch (e) {
+    if (mine !== batteryRequest) return;
+    $('bError').textContent = 'Nie udało się policzyć magazynu: ' + e.message;
+    $('bError').hidden = false;
+  } finally {
+    if (mine === batteryRequest) { $('bBusy').hidden = true; $('bGo').disabled = false; }
+  }
+}
+
+function hhmm(iso) { return iso.slice(11, 16); }
+function dayLabel(iso) { return new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'numeric' }); }
+
+function showBattery(b) {
+  $('bResult').hidden = false;
+  const plan = b.plan, y = b.year;
+  const now = plan && plan.now;
+  $('bNow').replaceChildren();
+  if (now) {
+    $('bNow').append('Teraz (', hhmm(now.time), '): ', el('b', now.effect_label), ` (decyzja ${b.agent ? 'agenta' : 'sterownika'}: ${now.action_label})`,
+      `. Ceny opublikowane do ${plan.prices_until ? dayLabel(plan.prices_until) + ', ' + hhmm(plan.prices_until) : '–'}; dalej agent zakłada ceny jak dzień wcześniej.`
+      + (b.house.grid.export_limit_kw ? ` Wyłączenia falownika w planie: ${plan.trips} (zwykły falownik: ${plan.rule_trips}).` : ''));
+  }
+  if (plan) drawPlan(plan.steps);
+
+  const base = y.rows.find((r) => r.strategy === 'no_battery');
+  fillTable($('bYear'), ['Sterowanie', 'Rachunek za rok', 'Oszczędność', 'Z możliwej oszczędności', 'Wyłączenia falownika'], y.rows.map((r) => ({
+    cells: [STRATEGY[r.strategy] || r.strategy, nf0.format(r.bill_zl) + ' zł', r === base ? '–' : nf0.format(r.savings_zl) + ' zł',
+      r.share_of_optimum == null || r === base ? '–' : nf0.format(r.share_of_optimum * 100) + '%',
+      r.trips ? `${nf0.format(r.trips)} (${nf0.format(r.lost_pv_kwh)} kWh straty)` : '0'],
+    current: r.strategy === 'agent',
+  })));
+  $('bNote').textContent = `Rok testowy ${y.period[0]} – ${y.period[1]}: prawdziwe ceny RCE i pogoda dla tego miejsca; agent nie widział tego roku podczas nauki. `
+    + `Produkcja ${nf0.format(y.pv_kwh)} kWh, zużycie typowego domu ${nf0.format(y.load_kwh)} kWh. Rachunek wg net-billingu: oddany prąd trafia do depozytu, który pokrywa część „energia” rachunku; nadwyżkę po roku sprzedawca zwraca najwyżej w 30%. Rachunek obejmuje straty falownika i zużycie baterii. `
+    + `Ceny założone dla 2026 r. (G11 ${String(b.house.tariff.g11_energy_zl_kwh + b.house.tariff.distribution_zl_kwh).replace('.', ',')} zł/kWh z dystrybucją) – porównaj ze swoim rachunkiem. ${b.attribution}`;
+}
+
+function drawPlan(steps) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const chart = $('bChart'), tip = $('bTip');
+  chart.querySelector('svg')?.remove();
+  tip.style.display = 'none';
+  const legend = $('bLegend');
+  legend.replaceChildren();
+  for (const [name, color] of [['Cena RCE', '--s-price'], ['Produkcja PV', '--s-pv'], ['Zużycie domu', '--s-load'], ['Naładowanie baterii', '--s-soc']]) {
+    const span = el('span');
+    const key = el('i'); key.style.background = `var(${color})`;
+    span.append(key, name);
+    legend.append(span);
+  }
+  if (!steps.length) return;
+  const W = Math.max(300, Math.round(chart.clientWidth) || 640);
+  const L = 46, R = 8, PH = W < 480 ? 70 : 90, GAP = 34, T = 22;
+  const H = T + 3 * PH + 2 * GAP + 24;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Plan baterii do końca jutra: cena RCE, produkcja i zużycie, naładowanie baterii');
+  const add = (tag, attrs, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (text != null) n.textContent = text;
+    svg.append(n);
+    return n;
+  };
+  const n = steps.length, x = (i) => L + (W - L - R) * (i + 0.5) / n;
+  const panels = [
+    { title: 'Cena RCE (zł/kWh)', series: [{ v: steps.map((s) => s.rce_zl_kwh), color: '--s-price' }] },
+    { title: 'Moc (kW)', series: [{ v: steps.map((s) => s.pv_kwh * 4), color: '--s-pv', wash: true }, { v: steps.map((s) => s.load_kwh * 4), color: '--s-load' }] },
+    { title: 'Naładowanie baterii (%)', series: [{ v: steps.map((s) => s.soc * 100), color: '--s-soc', wash: true }], max: 100 },
+  ];
+  panels.forEach((p, k) => {
+    const top = T + k * (PH + GAP), bottom = top + PH;
+    const vals = p.series.flatMap((s) => s.v).filter((v) => v != null);
+    const max = p.max || Math.max(...vals, 0.1), min = Math.min(0, ...vals);
+    const step = niceStep(max - min), hi = Math.ceil(max / step) * step, lo = Math.floor(min / step) * step;
+    const y = (v) => bottom - PH * (v - lo) / (hi - lo || 1);
+    p.y = y;
+    add('text', { class: 'title', x: L, y: top - 8 }, p.title);
+    for (let v = lo; v <= hi + 1e-9; v += step) {
+      add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
+      add('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end' }, nf1.format(v).replace(',0', ''));
+    }
+    for (const s of p.series) {
+      let d = '', pen = false;
+      s.v.forEach((v, i) => {
+        if (v == null) { pen = false; return; }
+        d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+        pen = true;
+      });
+      if (s.wash && d) add('path', { class: 'wash', d: `${d}L${x(n - 1).toFixed(1)},${y(Math.max(lo, 0))}L${x(0).toFixed(1)},${y(Math.max(lo, 0))}Z`, style: `fill: var(${s.color})` });
+      add('path', { class: 'line', d, style: `stroke: var(${s.color})` });
+    }
+  });
+  // time axis: a tick every 6 hours (12 on a phone), the day at midnight
+  steps.forEach((s, i) => {
+    const t = hhmm(s.time);
+    if (t.endsWith(':00') && Number(t.slice(0, 2)) % (W < 600 ? 12 : 6) === 0) {
+      add('line', { class: 'grid', x1: x(i), x2: x(i), y1: T, y2: H - 22 });
+      add('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }, t === '00:00' ? dayLabel(s.time) : t);
+    }
+  });
+  const cross = add('line', { class: 'cross', x1: 0, x2: 0, y1: T, y2: H - 22, visibility: 'hidden' });
+  const hit = add('rect', { x: L, y: T, width: W - L - R, height: H - T - 22, fill: 'transparent', tabindex: 0,
+    'aria-label': 'Plan baterii: przesuń wskaźnik, aby zobaczyć szczegóły' });
+  const show = (i) => {
+    const s = steps[i];
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+    tip.replaceChildren(el('b', `${dayLabel(s.time)}, ${hhmm(s.time)}`), el('br'), s.effect_label, el('br'),
+      `Cena ${s.rce_zl_kwh == null ? '– (jak wczoraj)' : nf1.format(s.rce_zl_kwh * 100) + ' gr/kWh'}`, el('br'),
+      `PV ${nf1.format(s.pv_kwh * 4)} kW, dom ${nf1.format(s.load_kwh * 4)} kW`, el('br'),
+      `Bateria ${nf0.format(s.soc * 100)}%`);
+    tip.style.display = 'block';
+    const scale = chart.clientWidth / W, half = tip.offsetWidth / 2;
+    tip.style.left = Math.min(Math.max(x(i) * scale, half), chart.clientWidth - half) + 'px';
+    tip.style.top = (H - 22) * scale + 4 + 'px';
+  };
+  const at = (e) => {
+    const box = svg.getBoundingClientRect();
+    const px = (e.clientX - box.left) * W / box.width;
+    return Math.min(n - 1, Math.max(0, Math.round((px - L) / ((W - L - R) / n) - 0.5)));
+  };
+  let focusIndex = 0;
+  hit.addEventListener('pointermove', (e) => show(at(e)));
+  hit.addEventListener('pointerleave', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
+  hit.addEventListener('focus', () => show(focusIndex));
+  hit.addEventListener('blur', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
+  hit.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    focusIndex = Math.min(n - 1, Math.max(0, focusIndex + (e.key === 'ArrowRight' ? 4 : -4)));
+    show(focusIndex);
+  });
+  chart.prepend(svg);
+
+  // the plan as a table: one row per hour
+  const rows = [];
+  for (let i = 0; i < n; i += 4) {
+    const h = steps.slice(i, i + 4), prices = h.map((s) => s.rce_zl_kwh).filter((v) => v != null);
+    rows.push({ cells: [`${dayLabel(h[0].time)} ${hhmm(h[0].time)}`, prices.length ? nf1.format(prices.reduce((a, c) => a + c, 0) / prices.length * 100) : '–',
+      nf1.format(h.reduce((a, s) => a + s.pv_kwh, 0)), nf1.format(h.reduce((a, s) => a + s.load_kwh, 0)),
+      nf0.format(h[h.length - 1].soc * 100) + '%', h[0].effect_label] });
+  }
+  fillTable($('bPlanTable'), ['Godzina', 'Cena gr/kWh', 'PV kWh', 'Dom kWh', 'Bateria', 'Decyzja'], rows);
+}
+
 let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
@@ -1959,6 +2230,7 @@ window.addEventListener('resize', () => {
     if (lastMonthly && !$('result').hidden && Math.round($('chart').clientWidth) !== lastWidth) {
       drawChart(lastMonthly);
     }
+    if (battery && battery.plan && !$('bResult').hidden) drawPlan(battery.plan.steps);
   }, 150);
 });
 
@@ -1990,6 +2262,7 @@ document.querySelectorAll('.preset-btn[data-addr]').forEach((btn) => {
 });
 
 $('margin').addEventListener('change', reload);
+$('bGo').addEventListener('click', loadBattery);
 showLayouts();
 
 $('slider').addEventListener('input', (e) => {

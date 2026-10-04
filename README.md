@@ -234,8 +234,10 @@ Rok 2025-07-01 – 2026-06-30 w Katowicach: prawdziwe ceny RCE i pogoda, typowe 
   ma tę wiedzę w wagach, nauczoną na tysiącach losowych domów, i działa na słabym sprzęcie bez solvera.
 
 Agent uczy się od MPC nieliniowego (imitacja), a PPO dokłada niewiele (+0,1 zł na tydzień walidacyjny): planista
-jest już blisko optimum, więc nauka metodą prób i błędów ma mało do poprawienia. Zysk z RL to przede wszystkim
-szybkość i brak solvera przy jakości bliskiej planisty, a nie przebicie go.
+jest już blisko optimum, więc nauka metodą prób i błędów ma mało do poprawienia. Większy krok uczenia (2e-4 zamiast
+5e-5) przez chwilę daje tyle samo, a po milionie kroków psuje politykę (31,7 → 31,1 zł na tydzień), dlatego PPO
+ma tu mały krok i limit KL. Zysk z RL to przede wszystkim szybkość i brak solvera przy jakości bliskiej planisty,
+a nie przebicie go.
 <!-- /battery-results -->
 
 ### Ograniczenia magazynu
